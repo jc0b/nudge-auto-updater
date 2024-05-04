@@ -1,10 +1,23 @@
 #!/usr/bin/env python3
 import json
 import logging
+import os
 import sys
+
+try:
+	import yaml
+except ModuleNotFoundError as e:
+	if os.path.exists("configuration.yml"):
+		logging.error(f"Can't read configuration file: {e}")
+		sys.exit(1)
+	else:
+		logging.warning("PyYAML library could not be loaded, but no configuration file is present.\nWill continue with default settings.")
+
 
 DEFAULT_DEADLINE_DAYS = 14
 URGENT_DEADLINE_DAYS = 7
+
+
 
 class Version:
 	major = minor = patch = 0
