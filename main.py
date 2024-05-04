@@ -1,21 +1,26 @@
 #!/usr/bin/env python3
+import datetime
 import json
 import logging
 import os
 import sys
 
+
+DEFAULT_DEADLINE_DAYS = 14
+URGENT_DEADLINE_DAYS = 7
+CONFIG_FILE_NAME = "configuration.yml"
+DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+
+
 try:
 	import yaml
 except ModuleNotFoundError as e:
-	if os.path.exists("configuration.yml"):
+	if os.path.exists(CONFIG_FILE_NAME):
 		logging.error(f"Can't read configuration file: {e}")
 		sys.exit(1)
 	else:
 		logging.warning("PyYAML library could not be loaded, but no configuration file is present.\nWill continue with default settings.")
 
-
-DEFAULT_DEADLINE_DAYS = 14
-URGENT_DEADLINE_DAYS = 7
 
 
 
@@ -109,25 +114,44 @@ def get_nudge_config() -> dict:
 	logging.info("Successfully loaded Nudge config!")
 	return data
 
+def read_nudge_requirements(d:dict):
+	result = dict()
+	for nudge_requirement in nudge_config["osVersionRequirements"]:
+		target_str = "default"
+		if "targetedOSVersionsRule" in nudge_requirement:
+			target_str = nudge_requirement["targetedOSVersionsRule"]
+		result[target_str] = {"version":Version(nudge_requirement["requiredMinimumOSVersion"]),
+													"date":datetime.datetime.strptime(nudge_requirement["requiredInstallationDate"], DATE_FORMAT)}
+	return result
+
+def write_nudge_config(d:dict):
+	pass
+
 def get_macos_data() -> Version:
 	# to do
 	# currently returning a default
 	return Version(14, 5)
 
-def write_nudge_config(dict):
-	pass
+def get_config() -> dict:
+	result = [{"target":"default", "update_to":"latest"}]
+	with open(CONFIG_FILE_NAME, "r") as config_yaml:
+		logging.info(f"Loading {CONFIG_FILE_NAME} ...")
+		try:
+			result = yaml.safe_load(config_yaml)
+			logging.info(f"Successfully loaded {CONFIG_FILE_NAME}!")
+		except yaml.YAMLError as e:
+			logging.error(f"Unable to load {CONFIG_FILE_NAME}")
+			sys.exit(1)
+	return result
+
 
 def main():
 	nudge_config = get_nudge_config()
 	latest_macos_release = get_macos_data()
+	config = get_config()
 
-	# check whether the macOS feed has a macOS version
-	# newer than enforced by Nudge
-	nudge_requirements = {}
-	for nudge_requirement in nudge_config["osVersionRequirements"]:
-		target_str = "default"
-		if "targetedOSVersionsRule" in nudge_requirement:
-			target_str = nudge_requirement["targetedOSVersionsRule"]
+	# check per configuration if it needs to be updates
+	nudge_requirements = read_nudge_requirements(nudge_config)
 
 		# nudge_requirements[nudge_requirement["targetedOSVersionsRule"]] = 
 		# nudge_version = Version(nudge_requirement["requiredMinimumOSVersion"])
@@ -142,6 +166,9 @@ def main():
 
 	# test stuff
 	get_macos_data()
+	print(config)
+	date_obj = datetime.datetime.strptime("2024-04-09T14:00:00Z", DATE_FORMAT)
+	print(date_obj)
 
 
 
