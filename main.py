@@ -3,6 +3,7 @@ import datetime
 import json
 import logging
 import os
+import urllib.error
 import urllib.request
 import sys
 
@@ -21,8 +22,6 @@ except ModuleNotFoundError as e:
 		sys.exit(1)
 	else:
 		logging.warning("PyYAML library could not be loaded, but no configuration file is present.\nWill continue with default settings.")
-
-
 
 
 class Version:
@@ -121,7 +120,7 @@ def get_nudge_config() -> dict:
 
 def read_nudge_requirements(d:dict):
 	result = dict()
-	for nudge_requirement in nudge_config["osVersionRequirements"]:
+	for nudge_requirement in d["osVersionRequirements"]:
 		target_str = "default"
 		if "targetedOSVersionsRule" in nudge_requirement:
 			target_str = nudge_requirement["targetedOSVersionsRule"]
@@ -133,15 +132,20 @@ def write_nudge_config(d:dict):
 	pass
 
 def get_macos_data():
-	with urllib.request.urlopen("https://sofa.macadmins.io/v1/macos_data_feed.json") as url:
-		try:
-			data = json.load(url)
-			print(data.keys)
-		except e:
-			logging.error("Unable to load macOS update feed from SOFA")
-			sys.exit(1)
-	logging.error("Unable to open macOS update feed from SOFA")
-	sys.exit(1)
+	headers = {
+	'accept': 'application/json',
+	'User-Agent': 'nudge-auto-updater/1.0'
+	}
+	req = urllib.request.Request(url="https://sofa.macadmins.io/v1/macos_data_feed.json", headers=headers, method="GET")
+
+	try:
+		response = urllib.request.urlopen(req)
+	except urllib.error.HTTPError as e:
+		logging.error(f"Unexpected HTTP response \"{e}\" while trying to get SOFA feed. Exiting...")
+		sys.exit(1)
+
+	data = json.loads(response.read().decode('utf-8'))
+	logging.info("Successfully loaded macOS release data from SOFA!")
 
 def get_config() -> dict:
 	result = [{"target":"default", "update_to":"latest"}]
@@ -186,7 +190,7 @@ def setup_logging():
 	logger = logging.getLogger(__name__)
 	logging.basicConfig(
 		level=logging.DEBUG,
-		format="%(levelname)-2s: %(asctime)s %(module)-6s: %(message)s",
+		format="%(levelname)-2s: %(asctime)s (%(module)s) %(message)s",
 		datefmt="%Y/%m/%d %H:%M:%S",
 	)
 
