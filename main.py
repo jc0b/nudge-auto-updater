@@ -9,26 +9,26 @@ URGENT_DEADLINE_DAYS = 7
 class Version:
 	major = minor = patch = 0
 
-	def __init__(self, a, b=None, c=0):
-		# takes as input (major, minor, patch=0) or (s, source=None)
-		if isinstance(a, int) and isinstance(b, int):
+	def __init__(self, a, b=0, c=0):
+		# takes as input (major:int, minor:int=0, patch:int=0) or (s:str)
+		if isinstance(a, int):
 			self._process_version_ints(a, b, c)
 		elif isinstance(a, str):
-			self._process_version_str(a, b)
+			self._process_version_str(a)
 		else:
 			logging.error(f"Unable to interpret Version from {a}, {b}, {c}.")
 			sys.exit(1)
 	
 	@classmethod
-	def from_str(cls, s: str, source=None):
-		return cls(s, source)
+	def from_str(cls, s: str):
+		return cls(s)
 
 	@classmethod
-	def from_ints(cls, major, minor, patch=0):
+	def from_ints(cls, major, minor=0, patch=0):
 		return cls(major, minor, patch)
 
 	@classmethod
-	def from_int(cls, major, minor, patch=0):
+	def from_int(cls, major, minor=0, patch=0):
 		return cls(major, minor, patch)
 
 	def _process_version_ints(self, major:int, minor:int, patch:int):
@@ -36,16 +36,11 @@ class Version:
 		self.minor = minor
 		self.patch = patch
 
-	def _process_version_str(self, s:str, source:str):
+	def _process_version_str(self, s:str):
 		parts = s.split(".")
-		if len(parts) < 2:
-			if source :
-				logging.error(f"Got an invalid version number from {soure}.")
-			else :
-				logging.error("Failed to format version number.")
-			sys.exit(1)
 		self.major = int(parts[0])
-		self.minor = int(parts[1])
+		if len(parts) > 1:
+			self.minor = int(parts[1])
 		if len(parts) > 2:
 			self.patch = int(parts[2])
 
@@ -113,9 +108,19 @@ def main():
 	nudge_config = get_nudge_config()
 	latest_macos_release = get_macos_data()
 
-	# if nudge_config["osVersionRequirements"]
 	# check whether the macOS feed has a macOS version
 	# newer than enforced by Nudge
+	nudge_requirements = {}
+	for nudge_requirement in nudge_config["osVersionRequirements"]:
+		target_str = "default"
+		if "targetedOSVersionsRule" in nudge_requirement:
+			target_str = nudge_requirement["targetedOSVersionsRule"]
+
+		# nudge_requirements[nudge_requirement["targetedOSVersionsRule"]] = 
+		# nudge_version = Version(nudge_requirement["requiredMinimumOSVersion"])
+		# date_str = nudge_requirement["requiredInstallationDate"]
+		# target_str = nudge_requirement["targetedOSVersionsRule"]
+		# print (nudge_version)
 	# if not, exit here already
 
 	# if yes, we can assess the CVEs to determine the relevant deadline
@@ -124,6 +129,7 @@ def main():
 
 	# test stuff
 	get_macos_data()
+
 
 
 def setup_logging():
