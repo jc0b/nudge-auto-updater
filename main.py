@@ -3,6 +3,7 @@ import datetime
 import json
 import logging
 import os
+import urllib.request
 import sys
 
 
@@ -106,7 +107,11 @@ def get_nudge_config() -> dict:
 	logging.info("Loading Nudge config...")
 	try: 
 		f = open("nudge-config.json")
-		data = json.load(f)
+		try:
+			data = json.load(f)
+		except e:
+			logging.error("Unable to load nudge-config.json")
+			sys.exit(1)
 	except e:
 		logging.error("Unable to open nudge-config.json")
 		sys.exit(1)
@@ -127,10 +132,16 @@ def read_nudge_requirements(d:dict):
 def write_nudge_config(d:dict):
 	pass
 
-def get_macos_data() -> Version:
-	# to do
-	# currently returning a default
-	return Version(14, 5)
+def get_macos_data():
+	with urllib.request.urlopen("https://sofa.macadmins.io/v1/macos_data_feed.json") as url:
+		try:
+			data = json.load(url)
+			print(data.keys)
+		except e:
+			logging.error("Unable to load macOS update feed from SOFA")
+			sys.exit(1)
+	logging.error("Unable to open macOS update feed from SOFA")
+	sys.exit(1)
 
 def get_config() -> dict:
 	result = [{"target":"default", "update_to":"latest"}]
@@ -153,6 +164,8 @@ def main():
 	# check per configuration if it needs to be updates
 	nudge_requirements = read_nudge_requirements(nudge_config)
 
+
+
 		# nudge_requirements[nudge_requirement["targetedOSVersionsRule"]] = 
 		# nudge_version = Version(nudge_requirement["requiredMinimumOSVersion"])
 		# date_str = nudge_requirement["requiredInstallationDate"]
@@ -165,10 +178,7 @@ def main():
 	write_nudge_config(nudge_config)
 
 	# test stuff
-	get_macos_data()
-	print(config)
-	date_obj = datetime.datetime.strptime("2024-04-09T14:00:00Z", DATE_FORMAT)
-	print(date_obj)
+	
 
 
 
