@@ -1,6 +1,29 @@
 ---
-  - target : "default"
-    update_to : "latest"
-  - target : "12"
-    update_to : "13"
+  targets:
+    - target : "default"
+      update_to : "latest"
+    - target : "12"
+      update_to : "13"
+  cve_urgency_conditions:
+    max_baseScore : 10
+    average_baseSeverity : 8
+    max_exploitabilityScore : 10
+    average_exploitabilityScore : 8
+    max_impactScore : 10
+    average_impactScore : 8
+    number_CVEs : 10
+    number_actively_exploited_CVEs : 5
+    fraction_actively_exploited_CVEs : 0.7
+    formulas:
+      - comparison : "average"
+        formula : "baseScore * exploitabilityScore * impactScore"
+        threshhold : 500
+      - comparison : "max"
+        formula : "baseScore * exploitabilityScore * impactScore * is_actively_exploited"
+        threshhold : 200
+      - comparison : "sum"
+        formula    : "baseScore  * impactScore * is_actively_exploited"
+        threshhold : 300
+  default_deadline_days : 14
+  urgent_deadline_days : 7
 

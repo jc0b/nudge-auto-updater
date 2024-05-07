@@ -7,12 +7,9 @@ import urllib.error
 import urllib.request
 import sys
 
-
-DEFAULT_DEADLINE_DAYS = 14
-URGENT_DEADLINE_DAYS = 7
 CONFIG_FILE_NAME = "configuration.yml"
 DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
-
+HEADERS = {'accept': 'application/json', 'User-Agent': 'nudge-auto-updater/1.0'}
 
 try:
 	import yaml
@@ -23,7 +20,9 @@ except ModuleNotFoundError as e:
 	else:
 		logging.warning("PyYAML library could not be loaded, but no configuration file is present.\nWill continue with default settings.")
 
-
+# ----------------------------------------
+# 								Version
+# ----------------------------------------
 class Version:
 	major = minor = patch = 0
 
@@ -98,6 +97,9 @@ class Version:
 			return self.major < other.major
 		return False
 
+# ----------------------------------------
+# 								Nudge
+# ----------------------------------------
 def get_nudge_config() -> dict:
 	logging.info("Loading Nudge config...")
 	try: 
@@ -127,19 +129,16 @@ def read_nudge_requirements(d:dict):
 def write_nudge_config(d:dict):
 	pass
 
+# ----------------------------------------
+# 								macOS
+# ----------------------------------------
 def get_macos_data():
-	headers = {
-	'accept': 'application/json',
-	'User-Agent': 'nudge-auto-updater/1.0'
-	}
-	req = urllib.request.Request(url="https://sofa.macadmins.io/v1/macos_data_feed.json", headers=headers, method="GET")
-
+	req = urllib.request.Request(url="https://sofa.macadmins.io/v1/macos_data_feed.json", headers=HEADERS, method="GET")
 	try:
 		response = urllib.request.urlopen(req)
 	except urllib.error.HTTPError as e:
 		logging.error(f"Unexpected HTTP response \"{e}\" while trying to get SOFA feed.")
 		sys.exit(1)
-
 	try:
 		result = json.loads(response.read().decode('utf-8'))
 		logging.info("Successfully loaded macOS release data from SOFA!")
@@ -149,12 +148,54 @@ def get_macos_data():
 	return read_macos_data(result)
 
 def read_macos_data(d:dict):
-	result = []
+	releases = []
+	cves = {}
 	for release in d["OSVersions"]:
 		version = Version(release["Latest"]["ProductVersion"])
-		result.append(version)
+		releases.append(version)
+		found_security_release = False
+		for security_release in release["SecurityReleases"]:
+			if security_release["ProductVersion"] == release["Latest"]["ProductVersion"]:
+				if "CVEs" in security_release:
+					security_release_cves = security_release["CVEs"]
+					for cve in security_release_cves:
+						security_release_cves[cve] = get_CVE_info(cve, security_release_cves[cve])
+					cves[str(version)] = security_release_cves
+				else:
+					cves[str(version)] = dict()
+				found_security_release = True
+				break
+		if not found_security_release:
+			logging.error(f"Unable to find security release for macOS {version}")
+			sys.exit(1)
+	return releases, cves
+
+def get_CVE_info(s:str, b:bool):
+	req = urllib.request.Request(url=f"https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={s}", headers=HEADERS, method="GET")
+	try:
+		response = urllib.request.urlopen(req)
+	except urllib.error.HTTPError as e:
+		logging.error(f"Unexpected HTTP response \"{e}\" while trying to get CVE data for {s}.")
+		sys.exit(1)
+	try:
+		result = json.loads(response.read().decode('utf-8'))
+	except Error as e:
+		logging.error(f"Unable to load CVE data for {s}.")
+		sys.exit(1)
+	return read_CVE_info(result["vulnerabilities"][0]["cve"]["metrics"]["cvssMetricV31"][0], b)
+
+def read_CVE_info(d:dict, b:bool):
+	print(d)
+	result = dict()
+	result["baseScore"] = d["cvssData"]["baseScore"]
+	result["exploitabilityScore"] = d["exploitabilityScore"]
+	result["impactScore"] = d["impactScore"]
+	result["is_actively_exploited"] = int(b)
 	return result
 
+# ----------------------------------------
+# 					  	Configurations
+# ----------------------------------------
 def get_config() -> dict:
 	result = [{"target":"default", "update_to":"latest"}]
 	with open(CONFIG_FILE_NAME, "r") as config_yaml:
@@ -178,15 +219,38 @@ def get_gt_config_target(s):
 	logging.error(f"{s} is not a valid target in configuration.yml")
 	sys.exit(1)
 
+# ----------------------------------------
+# 				  Check CVE Conditions
+# ----------------------------------------
+# cve_urgency_conditions:
+#   max_baseScore : 10
+#   average_baseSeverity : 8
+#   max_exploitabilityScore : 10
+#   average_exploitabilityScore : 8
+#   max_impactScore : 10
+#   average_impactScore : 8
+#   number_CVEs : 10
+#   number_actively_exploited_CVEs : 5
+#   fraction_actively_exploited_CVEs : 0.7
+#   formulas:
+#     - comparison : "average"
+#       formula : "baseScore * exploitabilityScore * impactScore"
+#       threshhold : 500
+#     - comparison : "max"
+#       formula : "baseScore * exploitabilityScore * impactScore * is_actively_exploited"
+#       threshhold : 200
+#     - comparison : "sum"
+#       formula    : "baseScore  * impactScore * is_actively_exploited"
+#       threshhold : 300
+
 def main():
 	nudge_requirements = get_nudge_config()
-	latest_macos_releases = get_macos_data()
-	get_macos_data().sort(reverse=True)
-	print(latest_macos_releases)
+	latest_macos_releases, cves = get_macos_data()
+	latest_macos_releases.sort(reverse=True)
 	config = get_config()
 
 	# check per configuration if it needs to be updates
-	for target in config:
+	for target in config["targets"]:
 		if target["target"] in nudge_requirements:
 			# nudge requirement needs to be checked
 			if target["update_to"] == "latest":
@@ -208,10 +272,15 @@ def main():
 
 
 	# if nudge needs to be updated, ther we can assess the CVEs to determine the relevant deadline
+		# get all cves for the latest release
+		# is that cve being actively exploited/
+		# the severity rating of that cve
 	# then we need toupdate nudge
 
 
 	# test stuff
+	# print(cves)
+	print(get_CVE_info("CVE-2024-1580"))
 	
 	
 
