@@ -25,6 +25,18 @@
       "requiredInstallationDate": "2024-04-09T14:00:00Z",
       "requiredMinimumOSVersion": "14.4.1",
       "targetedOSVersionsRule": "default"
+    },
+    {
+      "aboutUpdateURL_disabled": "https://support.apple.com/en-us/HT213895#macos1441",
+      "aboutUpdateURLs": [
+        {
+          "_language": "en",
+          "aboutUpdateURL": "https://support.apple.com/en-us/HT213895#macos1441"
+        }
+      ],
+      "requiredInstallationDate": "2024-04-09T14:00:00Z",
+      "requiredMinimumOSVersion": "13.0.0",
+      "targetedOSVersionsRule": "12"
     }
   ],
   "userExperience": {

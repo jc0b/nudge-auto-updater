@@ -93,14 +93,10 @@ class Version:
 				if self.minor == other.minor:
 					if self.patch == other.patch:
 						return False
-					else:
-						return self.patch < other.patch
-				else: 
-					return self.minor < other.minor
-			else:
-				return self.major < other.major
-		else:
-			return False
+					return self.patch < other.patch
+				return self.minor < other.minor
+			return self.major < other.major
+		return False
 
 def get_nudge_config() -> dict:
 	logging.info("Loading Nudge config...")
@@ -108,15 +104,15 @@ def get_nudge_config() -> dict:
 		f = open("nudge-config.json")
 		try:
 			data = json.load(f)
-		except e:
+		except Error as e:
 			logging.error("Unable to load nudge-config.json")
 			sys.exit(1)
-	except e:
+	except Error as e:
 		logging.error("Unable to open nudge-config.json")
 		sys.exit(1)
 
 	logging.info("Successfully loaded Nudge config!")
-	return data
+	return read_nudge_requirements(data)
 
 def read_nudge_requirements(d:dict):
 	result = dict()
@@ -141,11 +137,23 @@ def get_macos_data():
 	try:
 		response = urllib.request.urlopen(req)
 	except urllib.error.HTTPError as e:
-		logging.error(f"Unexpected HTTP response \"{e}\" while trying to get SOFA feed. Exiting...")
+		logging.error(f"Unexpected HTTP response \"{e}\" while trying to get SOFA feed.")
 		sys.exit(1)
 
-	data = json.loads(response.read().decode('utf-8'))
-	logging.info("Successfully loaded macOS release data from SOFA!")
+	try:
+		result = json.loads(response.read().decode('utf-8'))
+		logging.info("Successfully loaded macOS release data from SOFA!")
+	except Error as e:
+		logging.error("Unable to load macOS release data from SOFA.")
+		sys.exit(1)
+	return read_macos_data(result)
+
+def read_macos_data(d:dict):
+	result = []
+	for release in d["OSVersions"]:
+		version = Version(release["Latest"]["ProductVersion"])
+		result.append(version)
+	return result
 
 def get_config() -> dict:
 	result = [{"target":"default", "update_to":"latest"}]
@@ -159,29 +167,52 @@ def get_config() -> dict:
 			sys.exit(1)
 	return result
 
+def get_gt_config_target(s):
+	config_version_parts = s.split(".")
+	if len(config_version_parts) == 1 :
+		return Version(int(config_version_parts[0]) + 1)
+	elif len(parts) == 2:
+		return Version(int(config_version_parts[0]), int(config_version_parts[1]) + 1)
+	elif len(parts) == 3:
+		return Version(int(config_version_parts[0]), int(config_version_parts[1]), int(config_version_parts[2]) + 1)
+	logging.error(f"{s} is not a valid target in configuration.yml")
+	sys.exit(1)
 
 def main():
-	nudge_config = get_nudge_config()
-	latest_macos_release = get_macos_data()
+	nudge_requirements = get_nudge_config()
+	latest_macos_releases = get_macos_data()
+	get_macos_data().sort(reverse=True)
+	print(latest_macos_releases)
 	config = get_config()
 
 	# check per configuration if it needs to be updates
-	nudge_requirements = read_nudge_requirements(nudge_config)
+	for target in config:
+		if target["target"] in nudge_requirements:
+			# nudge requirement needs to be checked
+			if target["update_to"] == "latest":
+				# nudge requirement needs to be checked against latest macOS
+				if nudge_requirements[target["target"]]["version"] < latest_macos_releases[0]:
+					logging.info(f"Nudge is old (nudge={nudge_requirements[target['target']]['version']}, newest={latest_macos_releases[0]})")
+				else:
+					logging.info(f"Nudge configuration for target {target['target']} is already up to date.")
+			else:
+				# nudge requirement needs to be checked against latest macOS that is up to config macOS
+				config_version_gt = get_gt_config_target(target["update_to"])
+				is_uptodate = True
+				for macos_release in latest_macos_releases:
+					if macos_release < config_version_gt and macos_release > nudge_requirements[target["target"]]["version"]:
+						logging.info(f"Nudge is old (nudge={nudge_requirements[target['target']]['version']}, newest={macos_release})")
+						is_uptodate = False
+				if is_uptodate:
+					logging.info(f"Nudge configuration for target {target['target']} is already up to date.")
 
 
+	# if nudge needs to be updated, ther we can assess the CVEs to determine the relevant deadline
+	# then we need toupdate nudge
 
-		# nudge_requirements[nudge_requirement["targetedOSVersionsRule"]] = 
-		# nudge_version = Version(nudge_requirement["requiredMinimumOSVersion"])
-		# date_str = nudge_requirement["requiredInstallationDate"]
-		# target_str = nudge_requirement["targetedOSVersionsRule"]
-		# print (nudge_version)
-	# if not, exit here already
-
-	# if yes, we can assess the CVEs to determine the relevant deadline
-
-	write_nudge_config(nudge_config)
 
 	# test stuff
+	
 	
 
 
