@@ -3,13 +3,22 @@ import datetime
 import json
 import logging
 import os
+import re
+import sys
 import urllib.error
 import urllib.request
-import sys
 
 CONFIG_FILE_NAME = "configuration.yml"
 DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 HEADERS = {'accept': 'application/json', 'User-Agent': 'nudge-auto-updater/1.0'}
+
+try:
+	api_key = os.environ["NVD_API_KEY"]
+	HEADERS["apiKey"] = api_key
+	logging.info("Using the provided NVD API key...")
+except KeyError as e:
+	logging.warning(f"The {e} environment variable is not set. You will be rate-limited by the NIST NVD API.")
+	
 
 try:
 	import yaml
@@ -208,7 +217,7 @@ def get_config() -> dict:
 			sys.exit(1)
 	return result
 
-def get_gt_config_target(s):
+def get_gt_config_target(s:str):
 	config_version_parts = s.split(".")
 	if len(config_version_parts) == 1 :
 		return Version(int(config_version_parts[0]) + 1)
@@ -219,9 +228,123 @@ def get_gt_config_target(s):
 	logging.error(f"{s} is not a valid target in configuration.yml")
 	sys.exit(1)
 
+def read_formula(formula_str:str, cve_name:str, cve:dict):
+	formula_str = formula_str.replace(" ", "")
+	formula_str = formula_str.lower()
+	for key in cve:
+		formula_str = formula_str.replace(key.lower(), str(cve[key]))
+	formula_str_old = ""
+	try:
+		while formula_str != formula_str_old:
+			formula_str_old = formula_str
+			temp_str = ""
+			while formula_str != temp_str:
+				temp_str = formula_str
+				formula_str = re.sub(r"[0-9]+(\.[0-9]+)?\^[0-9]+(\.[0-9]+)?", exp_subformula, formula_str_old)
+			temp_str = ""
+			while formula_str != temp_str:
+				temp_str = formula_str
+				formula_str = re.sub(r"[0-9]+(\.[0-9]+)?/[0-9]+(\.[0-9]+)?", div_subformula, formula_str)
+			temp_str = ""
+			while formula_str != temp_str:
+				temp_str = formula_str
+				formula_str = re.sub(r"[0-9]+(\.[0-9]+)?\*[0-9]+(\.[0-9]+)?", mul_subformula, formula_str)
+			temp_str = ""
+			while formula_str != temp_str:
+				temp_str = formula_str
+				formula_str = re.sub(r"[0-9]+(\.[0-9]+)?\+[0-9]+(\.[0-9]+)?", add_subformula, formula_str)
+			temp_str = ""
+			while formula_str != temp_str:
+				temp_str = formula_str
+				formula_str = re.sub(r"[0-9]+(\.[0-9]+)?-[0-9]+(\.[0-9]+)?", sub_subformula, formula_str)
+		return float(formula_str)
+	except Error as e:
+		logging.error(f"Unable to interpret cve_urgency_conditions formula {s} for CVE {cve_name}.")
+		sys.exit(1)
+
+def split_subformula(match):
+	s = match[0]
+	l = re.split(r"\^|/|\*|\+|-", s)
+	if len(l) == 2:
+		return float(l[0]), float(l[1])
+	else:
+		raise Exception(f"Unable to interpret {s} in cve_urgency_conditions formula.")
+
+def exp_subformula(match):
+	a, b = split_subformula(match)
+	result = a ^ b
+	return str(result)
+
+def div_subformula(match):
+	a, b = split_subformula(match)
+	result = a / b
+	return str(result)
+
+def mul_subformula(match):
+	a, b = split_subformula(match)
+	result = a * b
+	return str(result)
+
+def sub_subformula(match):
+	a, b = split_subformula(match)
+	result = a - b
+	return str(result)
+
+def add_subformula(match):
+	a, b = split_subformula(match)
+	result = a + b
+	return str(result)
+
+def brackets_subformula(match):
+	return match[0][1:-1]
+
+
 # ----------------------------------------
 # 				  Check CVE Conditions
 # ----------------------------------------
+def is_deadline_urgent(conditions, cves):
+	if len(cves) < 1:
+		return False
+	for score in ["baseScore", "exploitabilityScore", "impactScore"]:
+		if f"max_{score}" in conditions:
+			l = []
+			for cve in cves:
+				l.append(cves[cve][score])
+			l.sort(reverse=True)
+			if l[0] > conditions[f"max_{score}"]:
+				logging.info(f'CVE urgency condition met! Max {score} of {l[0]} is higher than threshhold {conditions[f"max_{score}"]}.')
+				return True
+		if f"average_{score}" in conditions:
+			l = []
+			for cve in cves:
+				l.append(cves[cve][score])
+			if (sum(l) / len(l)) > conditions[f"average_{score}"]:
+				logging.info(f'CVE urgency condition met! Average {score} of {(sum(l) / len(l))} is higher than threshhold {conditions[f"average_{score}"]}.')
+				return True
+	if "number_CVEs" in conditions:
+		if len(cves) < conditions["number_CVEs"]:
+			logging.info(f'CVE urgency condition met! Number of CVEs ({len(cves)}) is higher than threshhold {conditions["number_CVEs"]}.')
+			return True
+	if "number_actively_exploited_CVEs" in conditions:
+		l = []
+		for cve in cves:
+			l.append(cves[cve]["is_actively_exploited"])
+		if sum(l) > conditions[f"number_actively_exploited_CVEs"]:
+			logging.info(f'CVE urgency condition met! Number of actively exploited CVEs ({sum(l)}) is higher than threshhold {conditions["number_actively_exploited_CVEs"]}.')
+			return True
+	if "fraction_actively_exploited_CVEs" in conditions:
+		l = []
+		for cve in cves:
+			l.append(cves[cve]["is_actively_exploited"])
+		if (sum(l) / len(l)) > conditions["fraction_actively_exploited_CVEs"]:
+			logging.info(f'CVE urgency condition met! Fracction of actively exploited CVEs ({(sum(l) / len(l))}) is higher than threshold {conditions["fraction_actively_exploited_CVEs"]}.')
+			return True
+	if "formulas" in conditions:
+		for formula in conditions["formulas"]:
+			pass
+
+
+
 # cve_urgency_conditions:
 #   max_baseScore : 10
 #   average_baseSeverity : 8
@@ -279,8 +402,10 @@ def main():
 
 
 	# test stuff
-	# print(cves)
+	print(cves)
 	print(get_CVE_info("CVE-2024-1580"))
+
+
 	
 	
 

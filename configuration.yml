@@ -6,7 +6,7 @@
       update_to : "13"
   cve_urgency_conditions:
     max_baseScore : 10
-    average_baseSeverity : 8
+    average_baseScore : 8
     max_exploitabilityScore : 10
     average_exploitabilityScore : 8
     max_impactScore : 10
