@@ -11,22 +11,14 @@ import urllib.request
 CONFIG_FILE_NAME = "configuration.yml"
 DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 HEADERS = {'accept': 'application/json', 'User-Agent': 'nudge-auto-updater/1.0'}
-DEFAULT_CONFIG = 
-{
-	"targets" : [{"target":"default", "update_to":"latest"}]
-  "cve_urgency_conditions" : { "fraction_actively_exploited_CVEs" : 0.75 }
-  "default_deadline_days" : 14
-  "urgent_deadline_days" : 7
+DEFAULT_CONFIG = {
+	"targets" : [{"target":"default", "update_to":"latest"}],
+	"cve_urgency_conditions" : { "fraction_actively_exploited_CVEs" : 0.75 },
+	"default_deadline_days" : 14,
+	"urgent_deadline_days" : 7
 }
 
 using_default_config = False
-
-try:
-	api_key = os.environ["NVD_API_KEY"]
-	HEADERS["apiKey"] = api_key
-	logging.info("Using the provided NVD API key...")
-except KeyError as e:
-	logging.warning(f"The {e} environment variable is not set. You will be rate-limited by the NIST NVD API.")
 
 try:
 	import yaml
@@ -146,7 +138,7 @@ def read_nudge_requirements(d:dict):
 def write_nudge_config(d:dict):
 	try:
 		with open('nudge-config.json', 'w') as f:
-	    json.dump(d, f)
+			json.dump(d, f)
 	except Exception as e:
 		logging.error("Unable to write to nudge-config.json")
 		sys.exit(1)
@@ -218,7 +210,7 @@ def process_url(s:str):
 	return parts[-1]
 
 def get_CVE_scores(s:str, b:bool):
-	req = urllib.request.Request(url=f"https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={s}", headers=HEADERS, method="GET")
+	req = urllib.request.Request(url=f"https://api.vulncheck.com/v3/index/nist-nvd2?cve={s}", headers=HEADERS, method="GET")
 	try:
 		response = urllib.request.urlopen(req)
 	except urllib.error.HTTPError as e:
@@ -229,8 +221,8 @@ def get_CVE_scores(s:str, b:bool):
 	except Exception as e:
 		logging.error(f"Unable to load CVE data for {s}.")
 		sys.exit(1)
-	if "cvssMetricV31" in result["vulnerabilities"][0]["cve"]["metrics"]:
-		return read_CVE_scores(result["vulnerabilities"][0]["cve"]["metrics"]["cvssMetricV31"][0], b)
+	if "cvssMetricV31" in result["data"][0]["metrics"]:
+		return read_CVE_scores(result["data"][0]["metrics"]["cvssMetricV31"][0], b)
 	else:
 		return None
 
@@ -478,4 +470,12 @@ def setup_logging():
 
 if __name__ == '__main__':
 	setup_logging()
+	try:
+		global api_key
+		api_key = os.environ["VULNCHECK_API_KEY"]
+		HEADERS["Authorization"] = f"Bearer {api_key}"
+		logging.info("Using the provided VulnCheck API key...")
+	except KeyError as e:
+		logging.error(f"The {e} environment variable is not set. A VulnCheck API key is required to use this script.\nSee https://docs.vulncheck.com/getting-started/api-tokens for more.")
+		sys.exit(1)
 	main()
