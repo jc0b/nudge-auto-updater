@@ -143,16 +143,12 @@ def write_nudge_config(d:dict):
 		logging.error("Unable to write to nudge-config.json")
 		sys.exit(1)
 
-def adjust_url(url, change):
-	i = url.rfind("/") + 1
-	url = url[i]
-	url += change
-
 def update_nudge_file_dict(d:dict, target, version, url, days):
-	for i, requirement in iterate(d["osVersionRequirements"]):
+	for i, requirement in enumerate(d["osVersionRequirements"]):
 		if requirement["targetedOSVersionsRule"] == target:
-			d["osVersionRequirements"][i]["aboutUpdateURL_disabled"] = adjust_url(d["osVersionRequirements"]["aboutUpdateURL_disabled"], url)
-			d["osVersionRequirements"][i]["aboutUpdateURLs"]["aboutUpdateURL"] = adjust_url(d["osVersionRequirements"]["aboutUpdateURLs"]["aboutUpdateURL"], url)
+			d["osVersionRequirements"][i]["aboutUpdateURL_disabled"] = adjust_url(requirement["aboutUpdateURL_disabled"], url)
+			for j in range(len(d["osVersionRequirements"][i]["aboutUpdateURLs"])):
+				d["osVersionRequirements"][i]["aboutUpdateURLs"][j]["aboutUpdateURL"] = adjust_url(requirement["aboutUpdateURLs"][j]["aboutUpdateURL"], url)
 			date = datetime.datetime.strptime(requirement["requiredInstallationDate"], DATE_FORMAT)
 			date = date + datetime.timedelta(days=days)
 			datestr = date.strftime(DATE_FORMAT)
@@ -161,6 +157,19 @@ def update_nudge_file_dict(d:dict, target, version, url, days):
 			return d
 	logging.error(f"Unable to find target {target} in nudge-config.json.")
 	sys.exit(1)
+
+def adjust_url(url, change):
+	i = url.rfind("/") + 1
+	url = url[i]
+	url += change
+
+def adjust_date_str(datestr, days):
+	date = datetime.datetime.strptime(datestr, DATE_FORMAT)
+	today = datetime.date.today()
+	new_date = today + datetime.timedelta(days=days)
+	new_date = date.replace(year=new_date.year, month=new_date.month, day=new_date.month)
+
+	return date.strftime(DATE_FORMAT)
 
 # ----------------------------------------
 # 								macOS
@@ -192,10 +201,7 @@ def read_macos_data(d:dict):
 			if security_release["ProductVersion"] == release["Latest"]["ProductVersion"]:
 				urls[str(version)] = process_url(security_release["SecurityInfo"])
 				if "CVEs" in security_release:
-					security_release_cves = security_release["CVEs"]
-					for cve in security_release_cves:
-						security_release_cves[cve] = {cve, security_release_cves[cve]}
-					cves[str(version)] = security_release_cves
+					cves[str(version)] = security_release["CVEs"]
 				else:
 					cves[str(version)] = dict()
 				found_security_release = True
@@ -227,7 +233,6 @@ def get_CVE_scores(s:str, b:bool):
 		return None
 
 def read_CVE_scores(d:dict, b:bool):
-	print(d)
 	result = dict()
 	result["baseScore"] = d["cvssData"]["baseScore"]
 	result["exploitabilityScore"] = d["exploitabilityScore"]
@@ -239,6 +244,7 @@ def read_CVE_scores(d:dict, b:bool):
 # 					  	Configurations
 # ----------------------------------------
 def get_config() -> dict:
+	global using_default_config
 	if not os.path.exists(CONFIG_FILE_NAME):
 		using_default_config = True
 		logging.warning("No configuration file is present. Will continue with default settings.")
@@ -343,7 +349,7 @@ def brackets_subformula(match):
 # 				  Check CVE Conditions
 # ----------------------------------------
 def is_deadline_urgent(conditions, cves_scores, cves):
-	return check_cve_scores(conditions, cves_scores) or check_cve_scores(conditions, cves)
+	return check_cve_scores(conditions, cves_scores) or check_cve_numbers(conditions, cves)
 
 def check_cve_scores(conditions, cves):
 	if len(cves) < 1:
@@ -354,15 +360,15 @@ def check_cve_scores(conditions, cves):
 			for cve in cves:
 				l.append(cves[cve][score])
 			l.sort(reverse=True)
-			if l[0] > conditions[f"max_{score}"]:
-				logging.info(f'CVE urgency condition met! Max {score} of {l[0]} is higher than threshhold {conditions[f"max_{score}"]}.')
+			if l[0] >= conditions[f"max_{score}"]:
+				logging.info(f'CVE urgency condition met! Max {score} of {l[0]} is higher than or euqal to threshhold {conditions[f"max_{score}"]}.')
 				return True
 		if f"average_{score}" in conditions:
 			l = []
 			for cve in cves:
 				l.append(cves[cve][score])
-			if (sum(l) / len(l)) > conditions[f"average_{score}"]:
-				logging.info(f'CVE urgency condition met! Average {score} of {(sum(l) / len(l))} is higher than threshhold {conditions[f"average_{score}"]}.')
+			if (sum(l) / len(l)) >= conditions[f"average_{score}"]:
+				logging.info(f'CVE urgency condition met! Average {score} of {(sum(l) / len(l))} is higher or euqal to than threshhold {conditions[f"average_{score}"]}.')
 				return True
 	if "formulas" in conditions:
 		for formula in conditions["formulas"]:
@@ -370,39 +376,39 @@ def check_cve_scores(conditions, cves):
 			for cve in cves:
 				l.append(read_formula(formula["formula"], cve, cves[cve]))
 			if formula["comparison"] == "average":
-				if (sum(l) / len(l)) > formula["threshhold"]:
-					logging.info(f'CVE urgency condition met! CVEs had an average score for formula {formula["formula"]} ({(sum(l) / len(l))}) higher than threshold {formula["threshhold"]}.')
+				if (sum(l) / len(l)) >= formula["threshhold"]:
+					logging.info(f'CVE urgency condition met! CVEs had an average score for formula {formula["formula"]} ({(sum(l) / len(l))}) higher than or euqal to threshold {formula["threshhold"]}.')
 					return True
 			if formula["comparison"] == "max":
 				l.sort(reverse=True)
-				if l[0] > formula["threshhold"]:
-					logging.info(f'CVE urgency condition met! CVEs had an max score for formula {formula["formula"]} ({l[0]}) higher than threshold {formula["threshhold"]}.')
+				if l[0] >= formula["threshhold"]:
+					logging.info(f'CVE urgency condition met! CVEs had an max score for formula {formula["formula"]} ({l[0]}) higher than or euqal to threshold {formula["threshhold"]}.')
 					return True
 			if formula["comparison"] == "sum":
-				if sum(l) > formula["threshhold"]:
-					logging.info(f'CVE urgency condition met! CVEs had an summed score for formula {formula["formula"]} ({sum(l)}) higher than threshold {formula["threshhold"]}.')
+				if sum(l) >= formula["threshhold"]:
+					logging.info(f'CVE urgency condition met! CVEs had an summed score for formula {formula["formula"]} ({sum(l)}) higher than or euqal to threshold {formula["threshhold"]}.')
 					return True
 			if formula["comparison"] == "n_above":
 				n = formula["n"]
-				if len(l) > n:
+				if len(l) >= n:
 					l.sort(reverse=True)
 					if l[n-1] > formula["threshhold"]:
-						logging.info(f'CVE urgency condition met! At least {n} CVEs had a score for formula {formula["formula"]} above the threshold {formula["threshhold"]}.')
+						logging.info(f'CVE urgency condition met! At least {n} CVEs had a score for formula {formula["formula"]} higher than or euqal to the threshold {formula["threshhold"]}.')
 						return True
 	return False
 
 def check_cve_numbers(conditions, cves):
 	if "number_CVEs" in conditions:
-		if len(cves) < conditions["number_CVEs"]:
-			logging.info(f'CVE urgency condition met! Number of CVEs ({len(cves)}) is higher than threshhold {conditions["number_CVEs"]}.')
+		if len(cves) >= conditions["number_CVEs"]:
+			logging.info(f'CVE urgency condition met! Number of CVEs ({len(cves)}) is higher than or euqal to threshhold {conditions["number_CVEs"]}.')
 			return True
 	if "number_actively_exploited_CVEs" in conditions:
-		if sum(cves.values()) > conditions[f"number_actively_exploited_CVEs"]:
-			logging.info(f'CVE urgency condition met! Number of actively exploited CVEs ({sum(l)}) is higher than threshhold {conditions["number_actively_exploited_CVEs"]}.')
+		if sum(cves.values()) >= conditions[f"number_actively_exploited_CVEs"]:
+			logging.info(f'CVE urgency condition met! Number of actively exploited CVEs ({sum(l)}) is higher than or euqal to threshhold {conditions["number_actively_exploited_CVEs"]}.')
 			return True
 	if "fraction_actively_exploited_CVEs" in conditions:
-		if (sum(cves.values()) / len(cves)) > conditions["fraction_actively_exploited_CVEs"]:
-			logging.info(f'CVE urgency condition met! Fraction of actively exploited CVEs ({(sum(l) / len(l))}) is higher than threshold {conditions["fraction_actively_exploited_CVEs"]}.')
+		if (sum(cves.values()) / len(cves)) >= conditions["fraction_actively_exploited_CVEs"]:
+			logging.info(f'CVE urgency condition met! Fraction of actively exploited CVEs ({(sum(l) / len(l))}) is higher than or euqal to threshold {conditions["fraction_actively_exploited_CVEs"]}.')
 			return True
 	return False
 
@@ -425,17 +431,15 @@ def main():
 				if nudge_requirements[target["target"]]["version"] < latest_macos_releases[0]:
 					is_uptodate = False
 					new_macos_release = latest_macos_releases[0]
-					logging.info(f"Nudge is old (nudge={nudge_requirements[target['target']]['version']}, newest={latest_macos_releases[0]})")
+					logging.info(f"Nudge configuration for target {target['taget']} needs to be updated from {nudge_requirements[target['target']]['version']} to {new_macos_release})")
 				else:
 					is_uptodate = True
-					logging.info(f"Nudge configuration for target {target['target']} is already up to date.")
 			else:
-				# nudge requirement needs to be checked against latest macOS that is up to config macOS
 				config_version_gt = get_gt_config_target(target["update_to"])
 				is_uptodate = True
 				for macos_release in latest_macos_releases:
 					if macos_release < config_version_gt and macos_release > nudge_requirements[target["target"]]["version"]:
-						logging.info(f"Nudge is old (nudge={nudge_requirements[target['target']]['version']}, newest={macos_release})")
+						logging.info(f"Nudge configuration for target {target['target']} needs to be updated from {nudge_requirements[target['target']]['version']} to {macos_release})")
 						is_uptodate = False
 						new_macos_release = macos_release
 						break
@@ -445,20 +449,22 @@ def main():
 				# nudge is not up to date! Is the new update urgent?
 				# get security metrics
 				security_release_cves_scores = dict()
-				security_release_cves = cves[macos_release]
+				security_release_cves = cves[str(macos_release)]
 				for cve in security_release_cves:
 					cve_scores = get_CVE_scores(cve, security_release_cves[cve])
-					if cve_info:
-						security_release_cves_info[cve] = cve_info
+					if cve_scores:
+						security_release_cves_scores[cve] = cve_scores
 				if is_deadline_urgent(config["cve_urgency_conditions"], security_release_cves_scores, security_release_cves):
 					days = config["urgent_deadline_days"]
 				else:
+					logging.info("No CVE urgency condition met.")
 					days = config["default_deadline_days"]
-				nudge_file_dict = update_nudge_file_dict(nudge_file_dict, target["target"], new_macos_release, urls[new_macos_release], days)
+				nudge_file_dict = update_nudge_file_dict(nudge_file_dict, target["target"], new_macos_release, urls[str(new_macos_release)], days)
 				nudge_file_needs_updating = True
 	# if nudge dict has changed rewrite it
 	if nudge_file_needs_updating:
 		write_nudge_config(nudge_file_dict)
+		logging.info("Nudge configuration updated.")
 
 def setup_logging():
 	logger = logging.getLogger(__name__)
