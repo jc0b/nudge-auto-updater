@@ -431,7 +431,7 @@ def main():
 				if nudge_requirements[target["target"]]["version"] < latest_macos_releases[0]:
 					is_uptodate = False
 					new_macos_release = latest_macos_releases[0]
-					logging.info(f"Nudge configuration for target {target['taget']} needs to be updated from {nudge_requirements[target['target']]['version']} to {new_macos_release})")
+					logging.info(f"Nudge configuration for target {target['target']} needs to be updated from {nudge_requirements[target['target']]['version']} to {new_macos_release})")
 				else:
 					is_uptodate = True
 			else:
@@ -449,7 +449,7 @@ def main():
 				# nudge is not up to date! Is the new update urgent?
 				# get security metrics
 				security_release_cves_scores = dict()
-				security_release_cves = cves[str(macos_release)]
+				security_release_cves = cves[str(new_macos_release)]
 				for cve in security_release_cves:
 					cve_scores = get_CVE_scores(cve, security_release_cves[cve])
 					if cve_scores:
