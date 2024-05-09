@@ -1,84 +1,84 @@
 {
-  "optionalFeatures": {
-    "acceptableApplicationBundleIDs": [],
-    "acceptableAssertionUsage": false,
-    "acceptableCameraUsage": false,
-    "acceptableScreenSharingUsage": true,
-    "aggressiveUserExperience": false,
-    "aggressiveUserFullScreenExperience": false,
-    "asynchronousSoftwareUpdate": true,
-    "attemptToBlockApplicationLaunches": false,
-    "attemptToFetchMajorUpgrade": true,
-    "blockedApplicationBundleIDs": [],
-    "enforceMinorUpdates": true,
-    "terminateApplicationsOnLaunch": false
-  },
-  "osVersionRequirements": [
-    {
-      "aboutUpdateURL_disabled": "https://support.apple.com/en-us/HT213895#macos1441",
-      "aboutUpdateURLs": [
-        {
-          "_language": "en",
-          "aboutUpdateURL": "https://support.apple.com/en-us/HT213895#macos1441"
-        }
-      ],
-      "requiredInstallationDate": "2024-04-09T14:00:00Z",
-      "requiredMinimumOSVersion": "14.4.1",
-      "targetedOSVersionsRule": "default"
+    "optionalFeatures": {
+        "acceptableApplicationBundleIDs": [],
+        "acceptableAssertionUsage": false,
+        "acceptableCameraUsage": false,
+        "acceptableScreenSharingUsage": true,
+        "aggressiveUserExperience": false,
+        "aggressiveUserFullScreenExperience": false,
+        "asynchronousSoftwareUpdate": true,
+        "attemptToBlockApplicationLaunches": false,
+        "attemptToFetchMajorUpgrade": true,
+        "blockedApplicationBundleIDs": [],
+        "enforceMinorUpdates": true,
+        "terminateApplicationsOnLaunch": false
     },
-    {
-      "aboutUpdateURL_disabled": "https://support.apple.com/en-us/HT213895#macos1441",
-      "aboutUpdateURLs": [
+    "osVersionRequirements": [
         {
-          "_language": "en",
-          "aboutUpdateURL": "https://support.apple.com/en-us/HT213895#macos1441"
+            "aboutUpdateURL_disabled": "https://support.apple.com/en-us//HT214096",
+            "aboutUpdateURLs": [
+                {
+                    "_language": "en",
+                    "aboutUpdateURL": "https://support.apple.com/en-us//HT214096"
+                }
+            ],
+            "requiredInstallationDate": "2024-04-22T14:00:00Z",
+            "requiredMinimumOSVersion": "14.4.1",
+            "targetedOSVersionsRule": "default"
+        },
+        {
+            "aboutUpdateURL_disabled": "https://support.apple.com/en-us//HT214095",
+            "aboutUpdateURLs": [
+                {
+                    "_language": "en",
+                    "aboutUpdateURL": "https://support.apple.com/en-us//HT214095"
+                }
+            ],
+            "requiredInstallationDate": "2024-04-23T14:00:00Z",
+            "requiredMinimumOSVersion": "13.6.6",
+            "targetedOSVersionsRule": "12"
         }
-      ],
-      "requiredInstallationDate": "2024-04-09T14:00:00Z",
-      "requiredMinimumOSVersion": "13.0.0",
-      "targetedOSVersionsRule": "12"
+    ],
+    "userExperience": {
+        "allowGracePeriods": false,
+        "allowLaterDeferralButton": true,
+        "allowUserQuitDeferrals": true,
+        "approachingRefreshCycle": 6000,
+        "approachingWindowTime": 168,
+        "elapsedRefreshCycle": 300,
+        "gracePeriodInstallDelay": 23,
+        "gracePeriodLaunchDelay": 1,
+        "gracePeriodPath": "/private/var/db/.AppleSetupDone",
+        "imminentRefreshCycle": 600,
+        "imminentWindowTime": 24,
+        "initialRefreshCycle": 18000,
+        "maxRandomDelayInSeconds": 1200,
+        "noTimers": false,
+        "nudgeRefreshCycle": 60,
+        "randomDelay": false
+    },
+    "userInterface": {
+        "fallbackLanguage": "en",
+        "forceFallbackLanguage": false,
+        "forceScreenShotIcon": false,
+        "showDeferralCount": false,
+        "simpleMode": false,
+        "singleQuitButton": true,
+        "updateElements": [
+            {
+                "_language": "en",
+                "actionButtonText": "Update Device",
+                "customDeferralDropdownText": "I'll do this later",
+                "informationButtonText": "More Info",
+                "mainContentHeader": "Your device will restart during this update",
+                "mainContentNote": "Important Notes",
+                "mainContentSubHeader": "Updates can take around 30 minutes to complete.",
+                "mainContentText": "A fully up-to-date device is required to ensure that DatBoi Corp can accurately protect your device.\n\nTo begin the update, simply click on the Update Device button and follow the provided steps.\n\nBusy right now? You can defer this prompt by clicking 'I Understand' below.",
+                "mainHeader": "Your device requires an update",
+                "primaryQuitButtonText": "Remind me tomorrow",
+                "secondaryQuitButtonText": "I understand",
+                "subHeader": "A friendly reminder from DatBoi Corp"
+            }
+        ]
     }
-  ],
-  "userExperience": {
-    "allowGracePeriods": false,
-    "allowLaterDeferralButton": true,
-    "allowUserQuitDeferrals": true,
-    "approachingRefreshCycle": 6000,
-    "approachingWindowTime": 168,
-    "elapsedRefreshCycle": 300,
-    "gracePeriodInstallDelay": 23,
-    "gracePeriodLaunchDelay": 1,
-    "gracePeriodPath": "/private/var/db/.AppleSetupDone",
-    "imminentRefreshCycle": 600,
-    "imminentWindowTime": 24,
-    "initialRefreshCycle": 18000,
-    "maxRandomDelayInSeconds": 1200,
-    "noTimers": false,
-    "nudgeRefreshCycle": 60,
-    "randomDelay": false
-  },
-  "userInterface": {
-    "fallbackLanguage": "en",
-    "forceFallbackLanguage": false,
-    "forceScreenShotIcon": false,
-    "showDeferralCount": false,
-    "simpleMode": false,
-    "singleQuitButton": true,
-    "updateElements": [
-      {
-        "_language": "en",
-        "actionButtonText": "Update Device",
-        "customDeferralDropdownText": "I'll do this later",
-        "informationButtonText": "More Info",
-        "mainContentHeader": "Your device will restart during this update",
-        "mainContentNote": "Important Notes",
-        "mainContentSubHeader": "Updates can take around 30 minutes to complete.",
-        "mainContentText": "A fully up-to-date device is required to ensure that DatBoi Corp can accurately protect your device.\n\nTo begin the update, simply click on the Update Device button and follow the provided steps.\n\nBusy right now? You can defer this prompt by clicking 'I Understand' below.",
-        "mainHeader": "Your device requires an update",
-        "primaryQuitButtonText": "Remind me tomorrow",
-        "secondaryQuitButtonText": "I understand",
-        "subHeader": "A friendly reminder from DatBoi Corp"
-      }
-    ]
-  }
 }

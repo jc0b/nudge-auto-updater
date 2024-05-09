@@ -138,7 +138,7 @@ def read_nudge_requirements(d:dict):
 def write_nudge_config(d:dict):
 	try:
 		with open('nudge-config.json', 'w') as f:
-			json.dump(d, f)
+			json.dump(d, f, indent=4)
 	except Exception as e:
 		logging.error("Unable to write to nudge-config.json")
 		sys.exit(1)
@@ -159,16 +159,18 @@ def update_nudge_file_dict(d:dict, target, version, url, days):
 	sys.exit(1)
 
 def adjust_url(url, change):
+	print(type(url))
+	print(url)
 	i = url.rfind("/") + 1
-	url = url[i]
-	url += change
+	url = url[:i]
+	url += "/" + change
+	return url
 
 def adjust_date_str(datestr, days):
 	date = datetime.datetime.strptime(datestr, DATE_FORMAT)
 	today = datetime.date.today()
 	new_date = today + datetime.timedelta(days=days)
 	new_date = date.replace(year=new_date.year, month=new_date.month, day=new_date.month)
-
 	return date.strftime(DATE_FORMAT)
 
 # ----------------------------------------
