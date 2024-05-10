@@ -2,13 +2,14 @@
 import datetime
 import json
 import logging
+import optparse
 import os
 import re
 import sys
 import urllib.error
 import urllib.request
 
-CONFIG_FILE_NAME = "configuration.yml"
+DEFAULT_CONFIG_FILE_NAME = "configuration.yml"
 DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 HEADERS = {'accept': 'application/json', 'User-Agent': 'nudge-auto-updater/1.0'}
 DEFAULT_CONFIG = {
@@ -17,18 +18,9 @@ DEFAULT_CONFIG = {
 	"default_deadline_days" : 14,
 	"urgent_deadline_days" : 7
 }
-
-using_default_config = False
-
-try:
-	import yaml
-except ModuleNotFoundError as e:
-	if os.path.exists(CONFIG_FILE_NAME):
-		logging.error(f"Can't read configuration file: {e}")
-		sys.exit(1)
-	else:
-		using_default_config = True
-		logging.warning("PyYAML library could not be loaded, but no configuration file is present.\nWill continue with default settings.")
+DEFAULT_NUDGE_FILENAME = "nudge-config.json"
+DEFAULT_SOFA_FEED = "https://sofa.macadmins.io/v1/macos_data_feed.json"
+VERSION="0.0.1"
 
 # ----------------------------------------
 # 								Version
@@ -113,14 +105,14 @@ class Version:
 def get_nudge_config() -> dict:
 	logging.info("Loading Nudge config...")
 	try: 
-		f = open("nudge-config.json")
+		f = open(nudge_filename)
 		try:
 			data = json.load(f)
 		except Exception as e:
-			logging.error("Unable to load nudge-config.json")
+			logging.error(f"Unable to load {nudge_filename}")
 			sys.exit(1)
 	except Exception as e:
-		logging.error("Unable to open nudge-config.json")
+		logging.error(f"Unable to open {nudge_filename}")
 		sys.exit(1)
 
 	logging.info("Successfully loaded Nudge config!")
@@ -137,10 +129,10 @@ def read_nudge_requirements(d:dict):
 
 def write_nudge_config(d:dict):
 	try:
-		with open('nudge-config.json', 'w') as f:
+		with open(nudge_filename, 'w') as f:
 			json.dump(d, f, indent=4)
 	except Exception as e:
-		logging.error("Unable to write to nudge-config.json")
+		logging.error(f"Unable to write to {nudge_filename}")
 		sys.exit(1)
 
 def update_nudge_file_dict(d:dict, target, version, url, days):
@@ -155,15 +147,13 @@ def update_nudge_file_dict(d:dict, target, version, url, days):
 			d["osVersionRequirements"][i]["requiredInstallationDate"] = datestr
 			d["osVersionRequirements"][i]["requiredMinimumOSVersion"] = str(version)
 			return d
-	logging.error(f"Unable to find target {target} in nudge-config.json.")
+	logging.error(f"Unable to find target {target} in {nudge_filename}.")
 	sys.exit(1)
 
 def adjust_url(url, change):
-	print(type(url))
-	print(url)
 	i = url.rfind("/") + 1
 	url = url[:i]
-	url += "/" + change
+	url += change
 	return url
 
 def adjust_date_str(datestr, days):
@@ -177,7 +167,7 @@ def adjust_date_str(datestr, days):
 # 								macOS
 # ----------------------------------------
 def get_macos_data():
-	req = urllib.request.Request(url="https://sofa.macadmins.io/v1/macos_data_feed.json", headers=HEADERS, method="GET")
+	req = urllib.request.Request(url=sofa_url, headers=HEADERS, method="GET")
 	try:
 		response = urllib.request.urlopen(req)
 	except urllib.error.HTTPError as e:
@@ -218,6 +208,8 @@ def process_url(s:str):
 	return parts[-1]
 
 def get_CVE_scores(s:str, b:bool):
+	vulncheck_headers = HEADERS
+	vulncheck_headers["Authorization"] = f"Bearer {api_key}"
 	req = urllib.request.Request(url=f"https://api.vulncheck.com/v3/index/nist-nvd2?cve={s}", headers=HEADERS, method="GET")
 	try:
 		response = urllib.request.urlopen(req)
@@ -247,21 +239,21 @@ def read_CVE_scores(d:dict, b:bool):
 # ----------------------------------------
 def get_config() -> dict:
 	global using_default_config
-	if not os.path.exists(CONFIG_FILE_NAME):
+	if not os.path.exists(config_file):
 		using_default_config = True
 		logging.warning("No configuration file is present. Will continue with default settings.")
 	if using_default_config:
 		return DEFAULT_CONFIG
-	with open(CONFIG_FILE_NAME, "r") as config_yaml:
-		logging.info(f"Loading {CONFIG_FILE_NAME} ...")
+	with open(config_file, "r") as config_yaml:
+		logging.info(f"Loading {config_file} ...")
 		try:
 			result = yaml.safe_load(config_yaml)
-			logging.info(f"Successfully loaded {CONFIG_FILE_NAME}!")
+			logging.info(f"Successfully loaded {config_file}!")
 			if result == None or len(result) < 1:
 				return DEFAULT_CONFIG 
 			return result
 		except yaml.YAMLError as e:
-			logging.error(f"Unable to load {CONFIG_FILE_NAME}")
+			logging.error(f"Unable to load {config_file}")
 			sys.exit(1)
 	return result
 
@@ -433,7 +425,7 @@ def main():
 				if nudge_requirements[target["target"]]["version"] < latest_macos_releases[0]:
 					is_uptodate = False
 					new_macos_release = latest_macos_releases[0]
-					logging.info(f"Nudge configuration for target {target['target']} needs to be updated from {nudge_requirements[target['target']]['version']} to {new_macos_release})")
+					logging.info(f"Nudge configuration for target \"{target['target']}\" needs to be updated from {nudge_requirements[target['target']]['version']} to {new_macos_release})")
 				else:
 					is_uptodate = True
 			else:
@@ -446,7 +438,7 @@ def main():
 						new_macos_release = macos_release
 						break
 			if is_uptodate:
-				logging.info(f"Nudge configuration for target {target['target']} is already up to date.")
+				logging.info(f"Nudge configuration for target \"{target['target']}\" is already up to date.")
 			else:
 				# nudge is not up to date! Is the new update urgent?
 				# get security metrics
@@ -468,6 +460,10 @@ def main():
 		write_nudge_config(nudge_file_dict)
 		logging.info("Nudge configuration updated.")
 
+def config_help(msg):
+	
+	sys.exit(1)
+
 def setup_logging():
 	logger = logging.getLogger(__name__)
 	logging.basicConfig(
@@ -478,12 +474,61 @@ def setup_logging():
 
 if __name__ == '__main__':
 	setup_logging()
-	try:
-		global api_key
-		api_key = os.environ["VULNCHECK_API_KEY"]
-		HEADERS["Authorization"] = f"Bearer {api_key}"
+	usage = """usage: %prog [options]\nScript to update a Nudge JSON configuration file."""
+	parser = optparse.OptionParser(usage=usage, version=VERSION)
+	parser.add_option('--sofa-url', '-s', dest='sofa_url',
+						help="Custom SOFA feed URL. Should include the path to macos_data_feed.json.\nDefaults to https://sofa.macadmins.io/v1/macos_data_feed.json")
+	parser.add_option('--nudge-file', '-n', dest='nudge_file',
+						help="The Nudge JSON config file to update.\nDefaults to nudge-config.json")
+	parser.add_option('--api-key', '-a', dest='api_key',
+						help="A VulnCheck API key for getting CVE data. It is required to either set this argument, or the VULNCHECK_API_KEY environment variable.")
+	parser.add_option('--config-file', '-c', dest='config_file',
+						help="The path to a yaml-formatted file containing the configuration for nudge-auto-updater")
+
+	options, arguments = parser.parse_args()
+	global sofa_url
+	global nudge_filename
+	global api_key
+	global config_file
+
+	if options.sofa_url:
+		sofa_url = options.sofa_url
+		logging.info(f"Using {sofa_url} as a custom SOFA feed...")
+	else:
+		sofa_url = DEFAULT_SOFA_FEED
+
+	if not options.nudge_file:
+		nudge_filename = DEFAULT_NUDGE_FILENAME
+	else:
+		nudge_filename = options.nudge_file
+
+	if os.environ.get("VULNCHECK_API_KEY"):
+		api_key = os.environ.get("VULNCHECK_API_KEY")
 		logging.info("Using the provided VulnCheck API key...")
-	except KeyError as e:
-		logging.error(f"The {e} environment variable is not set. A VulnCheck API key is required to use this script.\nSee https://docs.vulncheck.com/getting-started/api-tokens for more.")
+	elif options.api_key:
+		api_key = options.api_key
+		logging.info("Using the provided VulnCheck API key...")
+	else:
+		logging.error(f"A VulnCheck API key is required to use this script. Please set it using either the VULNCHECK_API_KEY environment variable, or the --api-key argument.\n\tSee https://docs.vulncheck.com/getting-started/api-tokens for more.")
 		sys.exit(1)
+
+	if options.config_file:
+		config_file = options.config_file
+		logging.info(f"Using {config_file} for deferral configuration...")
+	else:
+		config_file = DEFAULT_CONFIG_FILE_NAME
+
+	global using_default_config
+	using_default_config = False
+
+	try:
+		import yaml
+	except ModuleNotFoundError as e:
+		if os.path.exists(config_file):
+			logging.error(f"Can't read configuration file: {e}")
+			sys.exit(1)
+		else:
+			using_default_config = True
+			logging.warning("PyYAML library could not be loaded, but no configuration file is present.\nWill continue with default settings.")
+
 	main()

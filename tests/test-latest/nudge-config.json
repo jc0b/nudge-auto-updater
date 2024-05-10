@@ -1,0 +1,16 @@
+{
+    "osVersionRequirements": [
+        {
+            "aboutUpdateURL_disabled": "https://support.apple.com/en-us/HT214096",
+            "aboutUpdateURLs": [
+                {
+                    "_language": "en",
+                    "aboutUpdateURL": "https://support.apple.com/en-us/HT214096"
+                }
+            ],
+            "requiredInstallationDate": "2024-07-15T14:00:00Z",
+            "requiredMinimumOSVersion": "14.4.1",
+            "targetedOSVersionsRule": "default"
+        }
+    ]
+}

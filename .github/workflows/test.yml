@@ -1,0 +1,16 @@
+name: Run Tests
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - name: Generate Nudge file
+        run: |
+          python3 -m pip install -r requirements.txt
+          ./nudge-auto-updater.py -s file://${GITHUB_WORKSPACE}/tests/test-latest/feed.json -c ${GITHUB_WORKSPACE}/tests/test-latest/configuration.yml -n ${GITHUB_WORKSPACE}/tests/test-latest/nudge-config.json
+      - name: Run tests
+        run: |
+          [[ $(jq -r '.OSVersions.[0].SecurityReleases.[0].ProductVersion' ${GITHUB_WORKSPACE}/tests/test-latest/feed.json) == $(jq -r '.osVersionRequirements.[0].requiredMinimumOSVersion' ${GITHUB_WORKSPACE}/tests/test-latest/nudge-config.json) ]]

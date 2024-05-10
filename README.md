@@ -1,11 +1,11 @@
 # nudge-auto-updater
-A tool to demo how you can update [Nudge](https://github.com/macadmins/Nudge) JSON configuration definitions automatically.
+`nudge-auto-updater` is a tool that leverages [SOFA](https://sofa.macadmins.io) in combination with [VulnCheck](https://docs.vulncheck.com/) to detect new macOS updates, triage the severity of the CVEs fixed, and update your JSON [Nudge](https://github.com/macadmins/Nudge) configuration appropriately.
 
-Leverages [SOFA](https://sofa.macadmins.io) for the macOS update feed, and [NIST's National Vulnerability Database REST API](https://nvd.nist.gov/developers/vulnerabilities) for grabbing info about CVEs.
+A VulnCheck API key is currently required to use this script - without it, CVE lookups can't be performed.
 
 ## Configuration
 You can configure this program by putting a `configuration.yml` file in the same directory as the script.
-Under the ket `targets`, this `configuration.yml` file should contain a list of `osVersionRequirements`, the keys of which are documented below:
+Under the key `targets`, this `configuration.yml` file should contain a list of `osVersionRequirements`, the keys of which are documented below:
 |	Key	| Type | Description	|
 |-----------------------|--------|----------------------|
 | `target` | string | Specifies the `targetedOSVersionsRule` in Nudge. |
@@ -13,6 +13,6 @@ Under the ket `targets`, this `configuration.yml` file should contain a list of 
 
 To do: describe rest of keys 
 
-If the `configuration.yml` file is missing this program will only update the Nudge configuration `osVersionRequirements` for the default `targetedOSVersionsRule` to the latest version of macOS.
+If the `configuration.yml` file is missing this script will only update the Nudge configuration `osVersionRequirements` for the default `targetedOSVersionsRule` to the latest version of macOS.
 The specified configuration will only update existing `osVersionRequirements` - it will not create new ones.
 An example file is included in this project.
