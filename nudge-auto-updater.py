@@ -21,9 +21,23 @@ DEFAULT_CONFIG = {
 	"cve_urgency_levels": [{"cve_urgency_conditions": { "fraction_actively_exploited_CVEs": 0.75 }, "deadline_days": 2, "name": "urgent"}],
 	"default_deadline_days" : 14,
 }
+_BOOLMAP = {
+	'y': True,
+	'yes': True,
+	't': True,
+	'true': True,
+	'on': True,
+	'1': True,
+	'n': False,
+	'no': False,
+	'f': False,
+	'false': False,
+	'off': False,
+	'0': False
+}
 
 # ----------------------------------------
-# 								Version
+#                 Version
 # ----------------------------------------
 class Version:
 	major = minor = patch = 0
@@ -100,7 +114,34 @@ class Version:
 		return False
 
 # ----------------------------------------
-# 								Nudge
+#               Slack
+# ----------------------------------------
+def get_slack_url(slack_url):
+	try:
+		import certifi
+		# certifi installed -> check for slack_url in options, then env
+		if slack_url:
+			return slack_url
+		try:
+			# certifi installed AND slack_url not in option -> check for slack_url in env
+			return os.environ['SLACK_WEBHOOK']
+		except KeyError as e:
+			# certifi installed AND slack_url not in option -> check for slack_url in env
+			logging.warning(f"Slack url was not given as an option and {e} environment variable is undefined. Slack webhooks will not be sent.")
+			return None
+	# certifi not installed -> check for slack_url in options, then env
+	except ImportError as e:
+		# certifi not installed 
+		if slack_url or ('SLACK_WEBHOOK' in os.environ):
+			loggig.error(f"Certifi library could not be loaded.")
+			logging.error("You can install the necessary dependencies with 'python3 -m pip install -r requirements.txt'")
+			sys.exit(1)
+		else:
+			logging.warning("Certifi library could not be loaded, but no slack webhook url was specified. Slack webhooks will not be sent.")
+			return None
+
+# ----------------------------------------
+#                 Nudge
 # ----------------------------------------
 def get_nudge_config(nudge_file_name) -> dict:
 	logging.info("Loading Nudge config...")
@@ -164,7 +205,7 @@ def adjust_date_str(datestr, days):
 	return date.strftime(DATE_FORMAT)
 
 # ----------------------------------------
-# 								macOS
+#                 macOS
 # ----------------------------------------
 def get_macos_data(sofa_url):
 	req = urllib.request.Request(url=sofa_url, headers=HEADERS, method="GET")
@@ -235,7 +276,7 @@ def read_CVE_scores(d:dict, b:bool):
 	return result
 
 # ----------------------------------------
-# 					  	Configurations
+#               Configurations
 # ----------------------------------------
 def get_config(config_file_name, is_config_specified) -> dict:
 	try:
@@ -360,7 +401,7 @@ def brackets_subformula(match):
 
 
 # ----------------------------------------
-# 				  Check CVE Conditions
+#           Check CVE Conditions
 # ----------------------------------------
 def is_deadline_urgent(conditions, cves_scores, cves, name, days):
 	return check_cve_scores(conditions, cves_scores, name, days) or check_cve_numbers(conditions, cves, name, days)
@@ -436,7 +477,18 @@ def check_cve_numbers(conditions, cves, name, days):
 	return False
 
 # ----------------------------------------
-# 				  			Main
+#              User input
+# ----------------------------------------
+def user_confirm(days, target, version, old_version):
+  print(f'Should target \"{target}\" be updated from from {old_version} to {version} in {days} day(s)? [y/n] ', end='')
+  while True:
+    try:
+      return _BOOLMAP[str(input()).lower()]
+    except Exception as e:
+      print('Please respond with \'y\' or \'n\'.\n')
+
+# ----------------------------------------
+#                 Main
 # ----------------------------------------
 def process_options():
 	parser = optparse.OptionParser()
@@ -445,10 +497,14 @@ def process_options():
 						help="Custom SOFA feed URL. Should include the path to macos_data_feed.json.\nDefaults to https://sofa.macadmins.io/v1/macos_data_feed.json")
 	parser.add_option('--nudge-file', '-n', dest='nudge_file', default = DEFAULT_NUDGE_FILENAME,
 						help="The Nudge JSON config file to update.\nDefaults to nudge-config.json")
-	parser.add_option('--api-key', '-a', dest='api_key',
+	parser.add_option('--api-key', dest='api_key',
 						help="A VulnCheck API key for getting CVE data. It is required to either set this argument, or the VULNCHECK_API_KEY environment variable.")
 	parser.add_option('--config-file', '-c', dest='config_file',
 						help="The path to a yaml-formatted file containing the configuration for nudge-auto-updater")
+	parser.add_option('--webhook_url', '-w', dest='webhook_url',
+						help=f'Optional url for slack webhooks.')
+	parser.add_option('--auto', action='store_true',
+						help='Run without interaction.')
 	options, _ = parser.parse_args()
 	# chack if api key in env
 	if not options.api_key:
@@ -461,8 +517,8 @@ def process_options():
 		api_key = options.api_key
 	# return based on config file option
 	if options.config_file:
-		return options.sofa_url, options.nudge_file, api_key, options.config_file, True
-	return options.sofa_url, options.nudge_file, api_key, DEFAULT_CONFIG_FILE_NAME, False
+		return options.sofa_url, options.nudge_file, api_key, options.config_file, True, options.webhook_url, options.auto
+	return options.sofa_url, options.nudge_file, api_key, DEFAULT_CONFIG_FILE_NAME, False, options.webhook_url, options.auto
 
 def setup_logging():
 	logging.basicConfig(
@@ -473,7 +529,7 @@ def setup_logging():
 
 def main():
 	setup_logging()
-	sofa_url, nudge_file_name, api_key, config_file_name, is_config_specified  = process_options()
+	sofa_url, nudge_file_name, api_key, config_file_name, is_config_specified, slack_url, auto = process_options()
 
 	nudge_file_dict, nudge_requirements = get_nudge_config(nudge_file_name)
 	latest_macos_releases, cves, urls = get_macos_data(sofa_url)
@@ -493,7 +549,7 @@ def main():
 				if nudge_requirements[target["target"]]["version"] < latest_macos_releases[0]:
 					is_uptodate = False
 					new_macos_release = latest_macos_releases[0]
-					logging.info(f"Nudge configuration for target \"{target['target']}\" needs to be updated from {nudge_requirements[target['target']]['version']} to {new_macos_release})")
+					logging.info(f"Nudge configuration for target \"{target['target']}\" needs to be updated from {nudge_requirements[target['target']]['version']} to {new_macos_release}.")
 				else:
 					is_uptodate = True
 			else:
@@ -501,7 +557,7 @@ def main():
 				is_uptodate = True
 				for macos_release in latest_macos_releases:
 					if macos_release < config_version_gt and macos_release > nudge_requirements[target["target"]]["version"]:
-						logging.info(f"Nudge configuration for target \"{target['target']}\"needs to be updated from {nudge_requirements[target['target']]['version']} to {macos_release})")
+						logging.info(f"Nudge configuration for target \"{target['target']}\"needs to be updated from {nudge_requirements[target['target']]['version']} to {macos_release}.")
 						is_uptodate = False
 						new_macos_release = macos_release
 						break
@@ -533,8 +589,14 @@ def main():
 					logging.info("No CVE urgency condition met.")
 					days = config["default_deadline_days"]
 				# update target
-				nudge_file_dict = update_nudge_file_dict(nudge_file_dict, target["target"], new_macos_release, urls[str(new_macos_release)], days)
-				nudge_file_needs_updating = True
+				if auto or user_confirm(days, target['target'], new_macos_release, nudge_requirements[target['target']]['version']):
+					# TODO: ask user input
+					nudge_file_dict = update_nudge_file_dict(nudge_file_dict, target["target"], new_macos_release, urls[str(new_macos_release)], days)
+					nudge_file_needs_updating = True
+					if not auto:
+						logging.info("Nudge configuration will be updated.")
+				else:
+					logging.info("Skipping update.")
 	# if nudge dict has changed rewrite it
 	if nudge_file_needs_updating:
 		write_nudge_config(nudge_file_name, nudge_file_dict)
