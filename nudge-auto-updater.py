@@ -552,7 +552,7 @@ def process_options():
 						help="A VulnCheck API key for getting CVE data. It is required to either set this argument, or the VULNCHECK_API_KEY environment variable.")
 	parser.add_option('--config-file', '-c', dest='config_file',
 						help="The path to a yaml-formatted file containing the configuration for nudge-auto-updater")
-	parser.add_option('--webhook_url', '-w', dest='webhook_url',
+	parser.add_option('--webhook-url', '-w', dest='webhook_url',
 						help=f'Optional url for slack webhooks.')
 	parser.add_option('--auto', action='store_true',
 						help='Run without interaction.')
