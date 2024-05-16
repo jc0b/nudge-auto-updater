@@ -609,7 +609,7 @@ def main():
 				is_uptodate = True
 				for macos_release in latest_macos_releases:
 					if macos_release < config_version_gt and macos_release > nudge_requirements[target["target"]]["version"]:
-						logging.info(f"Nudge configuration for target \"{target['target']}\"needs to be updated from {nudge_requirements[target['target']]['version']} to {macos_release}.")
+						logging.info(f"Nudge configuration for target \"{target['target']}\" needs to be updated from {nudge_requirements[target['target']]['version']} to {macos_release}.")
 						is_uptodate = False
 						new_macos_release = macos_release
 						break
