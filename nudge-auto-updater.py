@@ -432,7 +432,7 @@ def check_cve_scores(conditions, cves, name, days, conjunction, found=False):
 				l.append(cves[cve][score])
 			l.sort(reverse=True)
 			if l[0] >= conditions[f"max_{score}"]:
-				s = f'Max {score} of {l[0]} is higher than or equal to threshhold {conditions[f"max_{score}"]}.'
+				s = f'Max {score} of {l[0]} is higher than or equal to threshold {conditions[f"max_{score}"]}.'
 				met_cve_conditions.append(s)
 				description += "\t- " + s + "\n"
 				disj = True
@@ -443,7 +443,7 @@ def check_cve_scores(conditions, cves, name, days, conjunction, found=False):
 			for cve in cves:
 				l.append(cves[cve][score])
 			if (sum(l) / len(l)) >= conditions[f"average_{score}"]:
-				s = f'Average {score} of {(sum(l) / len(l))} is higher or equal to than threshhold {conditions[f"average_{score}"]}.'
+				s = f'Average {score} of {(sum(l) / len(l))} is higher or equal to than threshold {conditions[f"average_{score}"]}.'
 				met_cve_conditions.append(s)
 				description += "\t- " + s + "\n"
 				disj = True
@@ -455,8 +455,8 @@ def check_cve_scores(conditions, cves, name, days, conjunction, found=False):
 			for cve in cves:
 				l.append(read_formula(formula["formula"], cve, cves[cve]))
 			if formula["comparison"] == "average":
-				if (sum(l) / len(l)) >= formula["threshhold"]:
-					s = f'CVEs had an average score for formula {formula["formula"]} ({(sum(l) / len(l))}) higher than or equal to threshold {formula["threshhold"]}.'
+				if (sum(l) / len(l)) >= formula["threshold"]:
+					s = f'CVEs had an average score for formula {formula["formula"]} ({(sum(l) / len(l))}) higher than or equal to threshold {formula["threshold"]}.'
 					met_cve_conditions.append(s)
 					description += "\t- " + s + "\n"
 					disj = True
@@ -464,16 +464,16 @@ def check_cve_scores(conditions, cves, name, days, conjunction, found=False):
 					conj = False
 			if formula["comparison"] == "max":
 				l.sort(reverse=True)
-				if l[0] >= formula["threshhold"]:
-					s = f'CVEs had an max score for formula {formula["formula"]} ({l[0]}) higher than or equal to threshold {formula["threshhold"]}.'
+				if l[0] >= formula["threshold"]:
+					s = f'CVEs had an max score for formula {formula["formula"]} ({l[0]}) higher than or equal to threshold {formula["threshold"]}.'
 					met_cve_conditions.append(s)
 					description += "\t- " + s + "\n"
 					disj = True
 				else:
 					conj = False
 			if formula["comparison"] == "sum":
-				if sum(l) >= formula["threshhold"]:
-					s = f'CVEs had an summed score for formula {formula["formula"]} ({sum(l)}) higher than or equal to threshold {formula["threshhold"]}.'
+				if sum(l) >= formula["threshold"]:
+					s = f'CVEs had an summed score for formula {formula["formula"]} ({sum(l)}) higher than or equal to threshold {formula["threshold"]}.'
 					met_cve_conditions.append(s)
 					description += "\t- " + s + "\n"
 					disj = True
@@ -483,8 +483,8 @@ def check_cve_scores(conditions, cves, name, days, conjunction, found=False):
 				n = formula["n"]
 				if len(l) >= n:
 					l.sort(reverse=True)
-					if l[n-1] > formula["threshhold"]:
-						s = f' At least {n} CVEs had a score for formula {formula["formula"]} higher than or equal to the threshold {formula["threshhold"]}.'
+					if l[n-1] > formula["threshold"]:
+						s = f' At least {n} CVEs had a score for formula {formula["formula"]} higher than or equal to the threshold {formula["threshold"]}.'
 						met_cve_conditions.append(s)
 						description += "\t- " + s + "\n"
 						disj = True
@@ -501,7 +501,7 @@ def check_cve_numbers(conditions, cves, name, days, conjunction, found=False):
 	met_cve_conditions = []
 	if "number_CVEs" in conditions:
 		if len(cves) >= conditions["number_CVEs"]:
-			s = f'Number of CVEs ({len(cves)}) is higher than or equal to threshhold {conditions["number_CVEs"]}.'
+			s = f'Number of CVEs ({len(cves)}) is higher than or equal to threshold {conditions["number_CVEs"]}.'
 			met_cve_conditions.append(s)
 			description += "\t- " + s + "\n"
 			disj = True
@@ -509,7 +509,7 @@ def check_cve_numbers(conditions, cves, name, days, conjunction, found=False):
 			conj = False
 	if "number_actively_exploited_CVEs" in conditions:
 		if sum(cves.values()) >= conditions[f"number_actively_exploited_CVEs"]:
-			s = f'Number of actively exploited CVEs ({sum(l)}) is higher than or equal to threshhold {conditions["number_actively_exploited_CVEs"]}.'
+			s = f'Number of actively exploited CVEs ({sum(l)}) is higher than or equal to threshold {conditions["number_actively_exploited_CVEs"]}.'
 			met_cve_conditions.append(s)
 			description += "\t- " + s + "\n"
 			disj = True

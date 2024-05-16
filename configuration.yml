@@ -22,18 +22,19 @@
         formulas:
           - comparison : "average"
             formula : "baseScore * exploitabilityScore * impactScore"
-            threshhold : 500
+            threshold : 500
           - comparison : "max"
             formula : "baseScore * exploitabilityScore * impactScore * is_actively_exploited"
-            threshhold : 200
+            threshold : 200
           - comparison : "sum"
             formula    : "baseScore  * impactScore * is_actively_exploited"
-            threshhold : 300
+            threshold : 300
           - comparison : "n_above"
             formula    : "baseScore  * impactScore * is_actively_exploited"
             n : 2
-            threshhold : 300
+            threshold : 300
       deadline_days : 7  
+      conjunction : false
   default_deadline_days : 14
 
 
