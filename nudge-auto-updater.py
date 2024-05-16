@@ -643,9 +643,9 @@ def main():
 							urgency_condition_met = True
 							break
 				if not urgency_condition_met:
-					logging.info("No CVE urgency condition met.")
+					logging.info(f"No CVE urgency level met. Installation will be required in {days} day(s).")
 					days = config["default_deadline_days"]
-					description = f"No CVE urgency condition met. Installation will be required in {days} day(s)."
+					description = f"No CVE urgency level met. Installation will be required in {days} day(s)."
 				# update target
 				if auto or user_confirm(days, target['target'], new_macos_release, nudge_requirements[target['target']]['version']):
 					nudge_file_dict = update_nudge_file_dict(nudge_file_dict, target["target"], new_macos_release, urls[str(new_macos_release)], days)
