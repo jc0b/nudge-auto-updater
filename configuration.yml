@@ -11,18 +11,18 @@
       name: "critical"
     - cve_urgency_conditions:
         max_baseScore : 10
-        average_baseScore : 8
-        max_exploitabilityScore : 10
-        average_exploitabilityScore : 8
-        max_impactScore : 10
-        average_impactScore : 8
+        average_baseScore : 5
+        max_exploitabilityScore : 8
+        average_exploitabilityScore : 5
+        max_impactScore : 8
+        average_impactScore : 5
         number_CVEs : 10
         number_actively_exploited_CVEs : 5
         fraction_actively_exploited_CVEs : 0.7
         formulas:
           - comparison : "average"
             formula : "baseScore * exploitabilityScore * impactScore"
-            threshold : 500
+            threshold : 100
           - comparison : "max"
             formula : "baseScore * exploitabilityScore * impactScore * is_actively_exploited"
             threshold : 200
@@ -32,7 +32,7 @@
           - comparison : "n_above"
             formula    : "baseScore  * impactScore * is_actively_exploited"
             n : 2
-            threshold : 300
+            threshold : 150
       deadline_days : 7  
       conjunction : false
   default_deadline_days : 14

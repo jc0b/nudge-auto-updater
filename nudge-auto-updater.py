@@ -5,6 +5,7 @@ import logging
 import optparse
 import os
 import re
+import ssl
 import sys
 import urllib.error
 import urllib.request
@@ -116,29 +117,49 @@ class Version:
 # ----------------------------------------
 #               Slack
 # ----------------------------------------
-def get_slack_url(slack_url):
+def send_slack_webhook(slack_url, slack_blocks):
+	context_block = {"type": "context", "elements": [{"type": "mrkdwn", "text": "This message brought to you by <https://github.com/jc0b/nudge-auto-updater|nudge-auto-updater>"}]}
+	context_block = slack_blocks.append(context_block)
+	slack_dict = {"blocks" : slack_blocks}
+	data = json.dumps(slack_dict).encode('utf-8') #data should be in bytes
+	headers = {'Content-Type': 'application/json'}
+	req = urllib.request.Request(slack_url, data, headers)
+	resp = urllib.request.urlopen(req, context=ssl.create_default_context(cafile=certifi.where()))
+	response = resp.read()
+	if(resp.status == 200):
+		logging.info("Slack wbhook sent successfully!")
+	else:
+		logging.error(f"Slack webhook could not be sent. HTTP response {resp.status}.")
+		sys.exit(1)
+
+def build_slack_block_dict(urgency_condition_met, target_description, urgency_level_description, met_cve_conditions):
+	target_element  = {"type": "text", "text": target_description, "style": {"bold": True}}
+	urgency_element = {"type": "text", "text": f"\n{urgency_level_description}\n"}
+	header_element  = {"type": "rich_text_section", "elements": [target_element, urgency_element]}
+	if urgency_condition_met:
+		cve_condition_elements = []
+		for met_cve_condition in met_cve_conditions:
+			cve_condition_elements.append({"type": "rich_text_section", "elements": [{"type": "text", "text": met_cve_condition}]})
+		list_element = {"type": "rich_text_list", "style": "bullet", "indent": 0, "border": 0, "elements": cve_condition_elements}
+		return {"type": "rich_text", "elements": [header_element, list_element]}
+	return {"type": "rich_text", "elements": [header_element]}
+
+def add_to_slack_block(blocks, urgency_condition_met, target_description, urgency_level_description, met_cve_conditions):
+	blocks.append(build_slack_block_dict(urgency_condition_met, target_description, urgency_level_description, met_cve_conditions))
+	blocks.append({"type": "divider"})
+	return blocks
+
+def setup_slack_blocks():
 	try:
+		global certifi
 		import certifi
-		# certifi installed -> check for slack_url in options, then env
-		if slack_url:
-			return slack_url
-		try:
-			# certifi installed AND slack_url not in option -> check for slack_url in env
-			return os.environ['SLACK_WEBHOOK']
-		except KeyError as e:
-			# certifi installed AND slack_url not in option -> check for slack_url in env
-			logging.warning(f"Slack url was not given as an option and {e} environment variable is undefined. Slack webhooks will not be sent.")
-			return None
-	# certifi not installed -> check for slack_url in options, then env
 	except ImportError as e:
-		# certifi not installed 
-		if slack_url or ('SLACK_WEBHOOK' in os.environ):
 			loggig.error(f"Certifi library could not be loaded.")
 			logging.error("You can install the necessary dependencies with 'python3 -m pip install -r requirements.txt'")
 			sys.exit(1)
-		else:
-			logging.warning("Certifi library could not be loaded, but no slack webhook url was specified. Slack webhooks will not be sent.")
-			return None
+	header_block = {"type": "header", "text": {"type": "plain_text", "text": "Nudge Configuration Updated", "emoji": True}}
+	div_block = {"type": "divider"}
+	return [header_block, div_block]
 
 # ----------------------------------------
 #                 Nudge
@@ -404,8 +425,10 @@ def brackets_subformula(match):
 #           Check CVE Conditions
 # ----------------------------------------
 def check_deadline_urgent(conditions, cves_scores, cves, name, days, conjunction=False):
-	result1, description1, met_cve_conditions1 = check_cve_scores(conditions, cves_scores, name, days, conjunction)
-	result2, description2, met_cve_conditions2 = check_cve_numbers(conditions, cves, name, days, conjunction, result1)
+	if len(conditions) < 1:
+		return False, "", []
+	result1, met_cve_conditions1 = check_cve_scores(conditions, cves_scores, name, days, conjunction)
+	result2, met_cve_conditions2 = check_cve_numbers(conditions, cves, name, days, conjunction, result1)
 	s = f'CVE urgency is {name}! Installation will be required in {days} day(s).'
 	if conjunction:
 		result = result1 and result2
@@ -415,13 +438,12 @@ def check_deadline_urgent(conditions, cves_scores, cves, name, days, conjunction
 		logging.info(s)
 		for met_cve_condition in met_cve_conditions1 + met_cve_conditions2:
 			logging.info(met_cve_condition)
-		return result, s + "\n" + description1 + description2
-	return result, ""
+		return result, s, met_cve_conditions1 + met_cve_conditions2
+	return result, "", met_cve_conditions1 + met_cve_conditions2
 
 def check_cve_scores(conditions, cves, name, days, conjunction, found=False):
 	conj = True
 	disj = False
-	description = ""
 	met_cve_conditions = []
 	if len(cves) < 1:
 		return False
@@ -434,7 +456,6 @@ def check_cve_scores(conditions, cves, name, days, conjunction, found=False):
 			if l[0] >= conditions[f"max_{score}"]:
 				s = f'Max {score} of {l[0]} is higher than or equal to threshold {conditions[f"max_{score}"]}.'
 				met_cve_conditions.append(s)
-				description += "\t- " + s + "\n"
 				disj = True
 			else:
 				conj = False
@@ -445,7 +466,6 @@ def check_cve_scores(conditions, cves, name, days, conjunction, found=False):
 			if (sum(l) / len(l)) >= conditions[f"average_{score}"]:
 				s = f'Average {score} of {(sum(l) / len(l))} is higher or equal to than threshold {conditions[f"average_{score}"]}.'
 				met_cve_conditions.append(s)
-				description += "\t- " + s + "\n"
 				disj = True
 			else:
 				conj = False
@@ -458,7 +478,6 @@ def check_cve_scores(conditions, cves, name, days, conjunction, found=False):
 				if (sum(l) / len(l)) >= formula["threshold"]:
 					s = f'CVEs had an average score for formula {formula["formula"]} ({(sum(l) / len(l))}) higher than or equal to threshold {formula["threshold"]}.'
 					met_cve_conditions.append(s)
-					description += "\t- " + s + "\n"
 					disj = True
 				else:
 					conj = False
@@ -467,7 +486,6 @@ def check_cve_scores(conditions, cves, name, days, conjunction, found=False):
 				if l[0] >= formula["threshold"]:
 					s = f'CVEs had an max score for formula {formula["formula"]} ({l[0]}) higher than or equal to threshold {formula["threshold"]}.'
 					met_cve_conditions.append(s)
-					description += "\t- " + s + "\n"
 					disj = True
 				else:
 					conj = False
@@ -475,7 +493,6 @@ def check_cve_scores(conditions, cves, name, days, conjunction, found=False):
 				if sum(l) >= formula["threshold"]:
 					s = f'CVEs had an summed score for formula {formula["formula"]} ({sum(l)}) higher than or equal to threshold {formula["threshold"]}.'
 					met_cve_conditions.append(s)
-					description += "\t- " + s + "\n"
 					disj = True
 				else:
 					conj = False
@@ -486,24 +503,21 @@ def check_cve_scores(conditions, cves, name, days, conjunction, found=False):
 					if l[n-1] > formula["threshold"]:
 						s = f' At least {n} CVEs had a score for formula {formula["formula"]} higher than or equal to the threshold {formula["threshold"]}.'
 						met_cve_conditions.append(s)
-						description += "\t- " + s + "\n"
 						disj = True
 					else:
 						conj = False
 	if conjunction:
-		return conj, description, met_cve_conditions
-	return disj, description, met_cve_conditions
+		return conj, met_cve_conditions
+	return disj, met_cve_conditions
 
 def check_cve_numbers(conditions, cves, name, days, conjunction, found=False):
 	conj = True
 	disj = False
-	description = ""
 	met_cve_conditions = []
 	if "number_CVEs" in conditions:
 		if len(cves) >= conditions["number_CVEs"]:
 			s = f'Number of CVEs ({len(cves)}) is higher than or equal to threshold {conditions["number_CVEs"]}.'
 			met_cve_conditions.append(s)
-			description += "\t- " + s + "\n"
 			disj = True
 		else:
 			conj = False
@@ -511,7 +525,6 @@ def check_cve_numbers(conditions, cves, name, days, conjunction, found=False):
 		if sum(cves.values()) >= conditions[f"number_actively_exploited_CVEs"]:
 			s = f'Number of actively exploited CVEs ({sum(l)}) is higher than or equal to threshold {conditions["number_actively_exploited_CVEs"]}.'
 			met_cve_conditions.append(s)
-			description += "\t- " + s + "\n"
 			disj = True
 		else:
 			conj = False
@@ -519,24 +532,23 @@ def check_cve_numbers(conditions, cves, name, days, conjunction, found=False):
 		if (sum(cves.values()) / len(cves)) >= conditions["fraction_actively_exploited_CVEs"]:
 			s = f'Fraction of actively exploited CVEs ({(sum(l) / len(l))}) is higher than or equal to threshold {conditions["fraction_actively_exploited_CVEs"]}.'
 			met_cve_conditions.append(s)
-			description += "\t- " + s + "\n"
 			disj = True
 		else:
 			conj = False
 	if conjunction:
-		return conj, description, met_cve_conditions
-	return disj, description, met_cve_conditions
+		return conj, met_cve_conditions
+	return disj, met_cve_conditions
 
 # ----------------------------------------
 #              User input
 # ----------------------------------------
 def user_confirm(days, target, version, old_version):
-  print(f'Should target \"{target}\" be updated from from {old_version} to {version} in {days} day(s)? [y/n] ', end='')
-  while True:
-    try:
-      return _BOOLMAP[str(input()).lower()]
-    except Exception as e:
-      print('Please respond with \'y\' or \'n\'.\n')
+	print(f'Should target \"{target}\" be updated from from {old_version} to {version} in {days} day(s)? [y/n] ', end='')
+	while True:
+		try:
+			return _BOOLMAP[str(input()).lower()]
+		except Exception as e:
+			print('Please respond with \'y\' or \'n\'.\n')
 
 # ----------------------------------------
 #                 Main
@@ -566,10 +578,15 @@ def process_options():
 			sys.exit(1)
 	else:
 		api_key = options.api_key
+	# check if slack url in env
+	if (not options.webhook_url) and os.environ.get("SLACK_WEBHOOK"):
+		slack_url = os.environ.get("SLACK_WEBHOOK")
+	else:
+		slack_url = options.api_key
 	# return based on config file option
 	if options.config_file:
-		return options.sofa_url, options.nudge_file, api_key, options.config_file, True, options.webhook_url, options.auto
-	return options.sofa_url, options.nudge_file, api_key, DEFAULT_CONFIG_FILE_NAME, False, options.webhook_url, options.auto
+		return options.sofa_url, options.nudge_file, api_key, options.config_file, True, slack_url, options.auto
+	return options.sofa_url, options.nudge_file, api_key, DEFAULT_CONFIG_FILE_NAME, False, slack_url, options.auto
 
 def setup_logging():
 	logging.basicConfig(
@@ -581,13 +598,14 @@ def setup_logging():
 def main():
 	setup_logging()
 	sofa_url, nudge_file_name, api_key, config_file_name, is_config_specified, slack_url, auto = process_options()
-
 	nudge_file_dict, nudge_requirements = get_nudge_config(nudge_file_name)
 	latest_macos_releases, cves, urls, release_dates = get_macos_data(sofa_url)
 	latest_macos_releases.sort(reverse=True)
 	config = get_config(config_file_name, is_config_specified)
 	nudge_file_needs_updating = False
-	change_description = ""
+	if slack_url:
+		slack_blocks = setup_slack_blocks()
+	markdown_description = ""
 
 	# check per configuration if it needs to be updates
 	for target in config["targets"]:
@@ -626,32 +644,36 @@ def main():
 						security_release_cves_scores[cve] = cve_scores
 				# check urgency levels to determine deadline
 				urgency_condition_met = False
-				for i, cve_urgency_level in enumerate(config["cve_urgency_levels"]):
-					if not urgency_condition_met:
-						name = f"level {i}"
-						if "name" in cve_urgency_level:
-							name = cve_urgency_level["name"]
-						if "deadline_days" not in cve_urgency_level:
-							logging.error(f"Target \"{target['target']}\" is missing value \'deadline_days\'. Please add this value to {config_file_name}")
-							sys.exit(1)
-						days = cve_urgency_level["deadline_days"]
-						conjunction = False
-						if "conjunction" in cve_urgency_level:
-							conjunction = cve_urgency_level["conjunction"]
-						is_urgency_level_met, description = check_deadline_urgent(cve_urgency_level["cve_urgency_conditions"], security_release_cves_scores, security_release_cves, name, days, conjunction)
-						if is_urgency_level_met:
-							urgency_condition_met = True
-							break
+				met_cve_conditions = []
+				if "cve_urgency_levels" in config:
+					for i, cve_urgency_level in enumerate(config["cve_urgency_levels"]):
+						if not urgency_condition_met:
+							name = f"level {i}"
+							if "name" in cve_urgency_level:
+								name = cve_urgency_level["name"]
+							if "deadline_days" not in cve_urgency_level:
+								logging.error(f"Target \"{target['target']}\" is missing value \'deadline_days\'. Please add this value to {config_file_name}")
+								sys.exit(1)
+							days = cve_urgency_level["deadline_days"]
+							conjunction = False
+							if "conjunction" in cve_urgency_level:
+								conjunction = cve_urgency_level["conjunction"]
+							is_urgency_level_met, urgency_level_description, met_cve_conditions = check_deadline_urgent(cve_urgency_level["cve_urgency_conditions"], security_release_cves_scores, security_release_cves, name, days, conjunction)
+							if is_urgency_level_met:
+								urgency_condition_met = True
+								break
 				if not urgency_condition_met:
-					logging.info(f"No CVE urgency level met. Installation will be required in {days} day(s).")
+					s = f"No CVE urgency level met. Installation will be required in {days} day(s)."
+					logging.info(s)
 					days = config["default_deadline_days"]
-					description = f"No CVE urgency level met. Installation will be required in {days} day(s)."
+					urgency_level_description = s 
 				# update target
 				if auto or user_confirm(days, target['target'], new_macos_release, nudge_requirements[target['target']]['version']):
-					nudge_file_dict = update_nudge_file_dict(nudge_file_dict, target["target"], new_macos_release, urls[str(new_macos_release)], release_dates[str(new_macos_release)], days)
 					nudge_file_needs_updating = True
-					change_description += f'Target \"{target["target"]}\" was updated from from {nudge_requirements[target["target"]]["version"]} to {new_macos_release}.\n'
-					change_description += description + "\n"
+					nudge_file_dict = update_nudge_file_dict(nudge_file_dict, target["target"], new_macos_release, urls[str(new_macos_release)], release_dates[str(new_macos_release)], days)
+					if slack_url:
+						target_description = f'Target \"{target["target"]}\" was updated from from {nudge_requirements[target["target"]]["version"]} to {new_macos_release}.\n'
+						slack_blocks = add_to_slack_block(slack_blocks, urgency_condition_met, target_description, urgency_level_description, met_cve_conditions)
 					if not auto:
 						logging.info("Nudge configuration will be updated.")
 				else:
@@ -660,8 +682,8 @@ def main():
 	if nudge_file_needs_updating:
 		write_nudge_config(nudge_file_name, nudge_file_dict)
 		logging.info("Nudge configuration updated.")
-		print()
-		print(change_description)
+		if slack_url:
+			send_slack_webhook(slack_url, slack_blocks)
 	else:
 		logging.info("Nudge configuration does not need updating.")
 
