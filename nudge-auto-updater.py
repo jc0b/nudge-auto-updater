@@ -176,16 +176,13 @@ def write_nudge_config(nudge_file_name:str, d:dict):
 		logging.error(f"Unable to write to {nudge_file_name}")
 		sys.exit(1)
 
-def update_nudge_file_dict(d:dict, target, version, url, days):
+def update_nudge_file_dict(d:dict, target, version, url, release_date, days):
 	for i, requirement in enumerate(d["osVersionRequirements"]):
 		if requirement["targetedOSVersionsRule"] == target:
 			d["osVersionRequirements"][i]["aboutUpdateURL_disabled"] = adjust_url(requirement["aboutUpdateURL_disabled"], url)
 			for j in range(len(d["osVersionRequirements"][i]["aboutUpdateURLs"])):
 				d["osVersionRequirements"][i]["aboutUpdateURLs"][j]["aboutUpdateURL"] = adjust_url(requirement["aboutUpdateURLs"][j]["aboutUpdateURL"], url)
-			date = datetime.datetime.strptime(requirement["requiredInstallationDate"], DATE_FORMAT)
-			date = date + datetime.timedelta(days=days)
-			datestr = date.strftime(DATE_FORMAT)
-			d["osVersionRequirements"][i]["requiredInstallationDate"] = datestr
+			d["osVersionRequirements"][i]["requiredInstallationDate"] = adjust_date_str(requirement["requiredInstallationDate"], release_date, days)
 			d["osVersionRequirements"][i]["requiredMinimumOSVersion"] = str(version)
 			return d
 	logging.error(f"Unable to find target {target} in {nudge_filename}.")
@@ -197,12 +194,13 @@ def adjust_url(url, change):
 	url += change
 	return url
 
-def adjust_date_str(datestr, days):
-	date = datetime.datetime.strptime(datestr, DATE_FORMAT)
-	today = datetime.date.today()
-	new_date = today + datetime.timedelta(days=days)
-	new_date = date.replace(year=new_date.year, month=new_date.month, day=new_date.month)
-	return date.strftime(DATE_FORMAT)
+def adjust_date_str(datestr, release_date, days):
+	nudge_date = datetime.datetime.strptime(datestr, DATE_FORMAT)
+	release_date = datetime.datetime.strptime(release_date, DATE_FORMAT)
+	new_date = release_date + datetime.timedelta(days=days)
+	new_date = nudge_date.replace(year=new_date.year, month=new_date.month, day=new_date.day)
+	print(f"nudge date : {nudge_date}, release_date : {release_date}, days : {days}, result : {new_date}")
+	return new_date.strftime(DATE_FORMAT)
 
 # ----------------------------------------
 #                 macOS
@@ -226,9 +224,11 @@ def read_macos_data(d:dict):
 	releases = []
 	cves = {}
 	urls = {}
+	dates = {}
 	for release in d["OSVersions"]:
 		version = Version(release["Latest"]["ProductVersion"])
 		releases.append(version)
+		dates[str(version)] = release["Latest"]["ReleaseDate"]
 		found_security_release = False
 		for security_release in release["SecurityReleases"]:
 			if security_release["ProductVersion"] == release["Latest"]["ProductVersion"]:
@@ -242,7 +242,7 @@ def read_macos_data(d:dict):
 		if not found_security_release:
 			logging.error(f"Unable to find security release for macOS {version}")
 			sys.exit(1)
-	return releases, cves, urls
+	return releases, cves, urls, dates
 
 def process_url(s:str):
 	parts = s.split("/")
@@ -583,7 +583,7 @@ def main():
 	sofa_url, nudge_file_name, api_key, config_file_name, is_config_specified, slack_url, auto = process_options()
 
 	nudge_file_dict, nudge_requirements = get_nudge_config(nudge_file_name)
-	latest_macos_releases, cves, urls = get_macos_data(sofa_url)
+	latest_macos_releases, cves, urls, release_dates = get_macos_data(sofa_url)
 	latest_macos_releases.sort(reverse=True)
 	config = get_config(config_file_name, is_config_specified)
 	nudge_file_needs_updating = False
@@ -648,7 +648,7 @@ def main():
 					description = f"No CVE urgency level met. Installation will be required in {days} day(s)."
 				# update target
 				if auto or user_confirm(days, target['target'], new_macos_release, nudge_requirements[target['target']]['version']):
-					nudge_file_dict = update_nudge_file_dict(nudge_file_dict, target["target"], new_macos_release, urls[str(new_macos_release)], days)
+					nudge_file_dict = update_nudge_file_dict(nudge_file_dict, target["target"], new_macos_release, urls[str(new_macos_release)], release_dates[str(new_macos_release)], days)
 					nudge_file_needs_updating = True
 					change_description += f'Target \"{target["target"]}\" was updated from from {nudge_requirements[target["target"]]["version"]} to {new_macos_release}.\n'
 					change_description += description + "\n"
