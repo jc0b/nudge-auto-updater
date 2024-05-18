@@ -162,6 +162,29 @@ def setup_slack_blocks():
 	return [header_block, div_block]
 
 # ----------------------------------------
+#					Markdown change log
+# ----------------------------------------
+def write_md_file(md_file, md):
+	try:
+		f = open(md_file, "w")
+		f.write(md)
+		f.close()
+		logging.info("Markdown file successfully updated.")
+	except Exception as e:
+		logging.error(f"Unable to write to {md_file}")
+		sys.exit(1)
+
+
+def md_description(urgency_condition_met, target_description, urgency_level_description, met_cve_conditions):
+	result = target_description + "\n"
+	if urgency_condition_met:
+		result += urgency_level_description + "\n"
+		for met_cve_condition in met_cve_conditions:
+			result += "- " + met_cve_condition + "\n"
+	result += "\n"
+	return result
+
+# ----------------------------------------
 #                 Nudge
 # ----------------------------------------
 def get_nudge_config(nudge_file_name) -> dict:
@@ -566,6 +589,8 @@ def process_options():
 						help="The path to a yaml-formatted file containing the configuration for nudge-auto-updater")
 	parser.add_option('--webhook-url', '-w', dest='webhook_url',
 						help=f'Optional url for slack webhooks.')
+	parser.add_option('--markdown-file', '-m', dest='markdown_file',
+						help=f'Optional file name to print markdown summary when nudge file is updated.')
 	parser.add_option('--auto', action='store_true',
 						help='Run without interaction.')
 	options, _ = parser.parse_args()
@@ -585,8 +610,8 @@ def process_options():
 		slack_url = options.api_key
 	# return based on config file option
 	if options.config_file:
-		return options.sofa_url, options.nudge_file, api_key, options.config_file, True, slack_url, options.auto
-	return options.sofa_url, options.nudge_file, api_key, DEFAULT_CONFIG_FILE_NAME, False, slack_url, options.auto
+		return options.sofa_url, options.nudge_file, api_key, options.config_file, True, slack_url, options.markdown_file, options.auto
+	return options.sofa_url, options.nudge_file, api_key, DEFAULT_CONFIG_FILE_NAME, False, slack_url, options.markdown_file, options.auto
 
 def setup_logging():
 	logging.basicConfig(
@@ -597,7 +622,7 @@ def setup_logging():
 
 def main():
 	setup_logging()
-	sofa_url, nudge_file_name, api_key, config_file_name, is_config_specified, slack_url, auto = process_options()
+	sofa_url, nudge_file_name, api_key, config_file_name, is_config_specified, slack_url, md_file, auto = process_options()
 	nudge_file_dict, nudge_requirements = get_nudge_config(nudge_file_name)
 	latest_macos_releases, cves, urls, release_dates = get_macos_data(sofa_url)
 	latest_macos_releases.sort(reverse=True)
@@ -605,7 +630,8 @@ def main():
 	nudge_file_needs_updating = False
 	if slack_url:
 		slack_blocks = setup_slack_blocks()
-	markdown_description = ""
+	if md_file:
+		md = ""
 
 	# check per configuration if it needs to be updates
 	for target in config["targets"]:
@@ -672,8 +698,10 @@ def main():
 					nudge_file_needs_updating = True
 					nudge_file_dict = update_nudge_file_dict(nudge_file_dict, target["target"], new_macos_release, urls[str(new_macos_release)], release_dates[str(new_macos_release)], days)
 					if slack_url:
-						target_description = f'Target \"{target["target"]}\" was updated from from {nudge_requirements[target["target"]]["version"]} to {new_macos_release}.\n'
+						target_description = f'Target \"{target["target"]}\" was updated from from {nudge_requirements[target["target"]]["version"]} to {new_macos_release}.'
 						slack_blocks = add_to_slack_block(slack_blocks, urgency_condition_met, target_description, urgency_level_description, met_cve_conditions)
+					if md_file:
+						md += md_description(urgency_condition_met, target_description, urgency_level_description, met_cve_conditions)
 					if not auto:
 						logging.info("Nudge configuration will be updated.")
 				else:
@@ -684,6 +712,8 @@ def main():
 		logging.info("Nudge configuration updated.")
 		if slack_url:
 			send_slack_webhook(slack_url, slack_blocks)
+		if md_file:
+			write_md_file(md_file, md)
 	else:
 		logging.info("Nudge configuration does not need updating.")
 
