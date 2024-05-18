@@ -19,7 +19,7 @@ DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 HEADERS = {'accept': 'application/json', 'User-Agent': 'nudge-auto-updater/1.0'}
 DEFAULT_CONFIG = {
 	"targets" : [{"target": "default", "update_to": "latest"}],
-	"cve_urgency_levels": [{"cve_urgency_conditions": { "fraction_actively_exploited_CVEs": 0.75 }, "deadline_days": 2, "name": "urgent"}],
+	"cve_urgency_levels": [{"cve_urgency_conditions": { "fraction_actively_exploited_CVEs": 0.75 }, "deadline_days": 7, "name": "urgent"}],
 	"default_deadline_days" : 14,
 }
 _BOOLMAP = {
