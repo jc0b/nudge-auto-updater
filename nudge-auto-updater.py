@@ -465,9 +465,23 @@ def check_deadline_urgent(conditions, cves_scores, cves, name, days, conjunction
 def check_cve_scores(conditions, cves, name, days, conjunction, found=False):
 	conj = True
 	disj = False
+	# behaviour if no cve data
 	met_cve_conditions = []
 	if len(cves) < 1:
+		if conjunction:
+			# conjunction -> return false if looking for at least one condition, otherwise return true
+			for condition in ["max_baseScore", "max_exploitabilityScore", "max_impactScore", "average_baseScore", "average_exploitabilityScore", "average_impactScore"]:
+				if condition in conditions:
+					return False 
+			if "formulas" in conditions:
+				if len(conditions["formulas"]) > 0:
+					return False
+			return True
+		else:
+			# disjunction -> return false
+			return False
 		return False
+	# behaviour if at least one cve data found
 	for score in ["baseScore", "exploitabilityScore", "impactScore"]:
 		if f"max_{score}" in conditions:
 			l = []
