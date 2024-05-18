@@ -176,9 +176,8 @@ def write_md_file(md_file, md):
 
 
 def md_description(urgency_condition_met, target_description, urgency_level_description, met_cve_conditions):
-	result = target_description + "\n"
+	result = target_description + "\n" + urgency_level_description + "\n"
 	if urgency_condition_met:
-		result += urgency_level_description + "\n"
 		for met_cve_condition in met_cve_conditions:
 			result += "- " + met_cve_condition + "\n"
 	result += "\n"
@@ -243,7 +242,6 @@ def adjust_date_str(datestr, release_date, days):
 	release_date = datetime.datetime.strptime(release_date, DATE_FORMAT)
 	new_date = release_date + datetime.timedelta(days=days)
 	new_date = nudge_date.replace(year=new_date.year, month=new_date.month, day=new_date.day)
-	print(f"nudge date : {nudge_date}, release_date : {release_date}, days : {days}, result : {new_date}")
 	return new_date.strftime(DATE_FORMAT)
 
 # ----------------------------------------
@@ -689,9 +687,9 @@ def main():
 								urgency_condition_met = True
 								break
 				if not urgency_condition_met:
+					days = config["default_deadline_days"]
 					s = f"No CVE urgency level met. Installation will be required in {days} day(s)."
 					logging.info(s)
-					days = config["default_deadline_days"]
 					urgency_level_description = s 
 				# update target
 				if auto or user_confirm(days, target['target'], new_macos_release, nudge_requirements[target['target']]['version']):
