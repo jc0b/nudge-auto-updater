@@ -441,7 +441,6 @@ def add_subformula(match):
 def brackets_subformula(match):
 	return match[0][1:-1]
 
-
 # ----------------------------------------
 #           Check CVE Conditions
 # ----------------------------------------
@@ -472,15 +471,15 @@ def check_cve_scores(conditions, cves, name, days, conjunction, found=False):
 			# conjunction -> return false if looking for at least one condition, otherwise return true
 			for condition in ["max_baseScore", "max_exploitabilityScore", "max_impactScore", "average_baseScore", "average_exploitabilityScore", "average_impactScore"]:
 				if condition in conditions:
-					return False 
+					return False, [] 
 			if "formulas" in conditions:
 				if len(conditions["formulas"]) > 0:
-					return False
-			return True
+					return False, []
+			return True, []
 		else:
 			# disjunction -> return false
-			return False
-		return False
+			return False, []
+		return False, []
 	# behaviour if at least one cve data found
 	for score in ["baseScore", "exploitabilityScore", "impactScore"]:
 		if f"max_{score}" in conditions:
