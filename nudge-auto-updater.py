@@ -317,6 +317,16 @@ def read_CVE_scores(d:dict, b:bool):
 	result["is_actively_exploited"] = int(b)
 	return result
 
+def check_if_cve_scores_needed(config, api_key):
+	if "cve_urgency_levels" in config:
+		for cve_urgency_level in config["cve_urgency_levels"]:
+			if is_CVE_score_condition(cve_urgency_level["cve_urgency_conditions"]):
+				# CVE scores needed for some level so need api key
+				if api_key:
+					return True
+				logging.error(f"A VulnCheck API key is required to use this script, as CVE scores are used in the configuration. Please set it using either the VULNCHECK_API_KEY environment variable, or the --api-key argument.\n\tSee https://docs.vulncheck.com/getting-started/api-tokens for more.")
+				sys.exit(1)
+	return False
 # ----------------------------------------
 #               Configurations
 # ----------------------------------------
@@ -469,13 +479,7 @@ def check_cve_scores(conditions, cves, name, days, conjunction, found=False):
 	if len(cves) < 1:
 		if conjunction:
 			# conjunction -> return false if looking for at least one condition, otherwise return true
-			for condition in ["max_baseScore", "max_exploitabilityScore", "max_impactScore", "average_baseScore", "average_exploitabilityScore", "average_impactScore"]:
-				if condition in conditions:
-					return False, [] 
-			if "formulas" in conditions:
-				if len(conditions["formulas"]) > 0:
-					return False, []
-			return True, []
+			return (not is_CVE_score_condition(conditions)), []
 		else:
 			# disjunction -> return false
 			return False, []
@@ -573,6 +577,15 @@ def check_cve_numbers(conditions, cves, name, days, conjunction, found=False):
 		return conj, met_cve_conditions
 	return disj, met_cve_conditions
 
+def is_CVE_score_condition(conditions):
+	for condition in ["max_baseScore", "max_exploitabilityScore", "max_impactScore", "average_baseScore", "average_exploitabilityScore", "average_impactScore"]:
+		if condition in conditions:
+			return True
+	if "formulas" in conditions:
+		if len(conditions["formulas"]) > 0:
+			return True
+	return False
+
 # ----------------------------------------
 #              User input
 # ----------------------------------------
@@ -606,14 +619,10 @@ def process_options():
 						help='Run without interaction.')
 	options, _ = parser.parse_args()
 	# chack if api key in env
-	if not options.api_key:
+	api_key = options.api_key
+	if not api_key:
 		if os.environ.get("VULNCHECK_API_KEY"):
 			api_key = os.environ.get("VULNCHECK_API_KEY")
-		else:
-			logging.error(f"A VulnCheck API key is required to use this script. Please set it using either the VULNCHECK_API_KEY environment variable, or the --api-key argument.\n\tSee https://docs.vulncheck.com/getting-started/api-tokens for more.")
-			sys.exit(1)
-	else:
-		api_key = options.api_key
 	# check if slack url in env
 	if (not options.webhook_url) and os.environ.get("SLACK_WEBHOOK"):
 		slack_url = os.environ.get("SLACK_WEBHOOK")
@@ -643,6 +652,9 @@ def main():
 		slack_blocks = setup_slack_blocks()
 	if md_file:
 		md = ""
+
+	# check if we need CVE scores
+	are_cve_scores_needed = check_if_cve_scores_needed(config, api_key)
 
 	# check per configuration if it needs to be updates
 	for target in config["targets"]:
@@ -675,10 +687,13 @@ def main():
 				# get security metrics
 				security_release_cves_scores = dict()
 				security_release_cves = cves[str(new_macos_release)]
-				for cve in security_release_cves:
-					cve_scores = get_CVE_scores(cve, security_release_cves[cve], api_key)
-					if cve_scores:
-						security_release_cves_scores[cve] = cve_scores
+				# do we need cve scores?
+				if are_cve_scores_needed:
+					# CVE scores needed  so get scores for each CVE:
+					for cve in security_release_cves:
+						cve_scores = get_CVE_scores(cve, security_release_cves[cve], api_key)
+						if cve_scores:
+							security_release_cves_scores[cve] = cve_scores
 				# check urgency levels to determine deadline
 				urgency_condition_met = False
 				met_cve_conditions = []
