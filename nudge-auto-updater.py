@@ -627,7 +627,7 @@ def process_options():
 	if (not options.webhook_url) and os.environ.get("SLACK_WEBHOOK"):
 		slack_url = os.environ.get("SLACK_WEBHOOK")
 	else:
-		slack_url = options.api_key
+		slack_url = options.slack_url
 	# return based on config file option
 	if options.config_file:
 		return options.sofa_url, options.nudge_file, api_key, options.config_file, True, slack_url, options.markdown_file, options.auto
