@@ -538,7 +538,7 @@ def check_cve_scores(conditions, cves, name, days, conjunction, found=False):
 				n = formula["n"]
 				if len(l) >= n:
 					l.sort(reverse=True)
-					if l[n-1] > formula["threshold"]:
+					if l[n-1] >= formula["threshold"]:
 						s = f' At least {n} CVEs had a score for formula {formula["formula"]} higher than or equal to the threshold {formula["threshold"]}.'
 						met_cve_conditions.append(s)
 						disj = True
@@ -561,14 +561,14 @@ def check_cve_numbers(conditions, cves, name, days, conjunction, found=False):
 			conj = False
 	if "number_actively_exploited_CVEs" in conditions:
 		if sum(cves.values()) >= conditions[f"number_actively_exploited_CVEs"]:
-			s = f'Number of actively exploited CVEs ({sum(l)}) is higher than or equal to threshold {conditions["number_actively_exploited_CVEs"]}.'
+			s = f'Number of actively exploited CVEs ({sum(cves.values())}) is higher than or equal to threshold {conditions["number_actively_exploited_CVEs"]}.'
 			met_cve_conditions.append(s)
 			disj = True
 		else:
 			conj = False
 	if "fraction_actively_exploited_CVEs" in conditions:
 		if (sum(cves.values()) / len(cves)) >= conditions["fraction_actively_exploited_CVEs"]:
-			s = f'Fraction of actively exploited CVEs ({(sum(l) / len(l))}) is higher than or equal to threshold {conditions["fraction_actively_exploited_CVEs"]}.'
+			s = f'Fraction of actively exploited CVEs ({(sum(cves.values()) / len(cves))}) is higher than or equal to threshold {conditions["fraction_actively_exploited_CVEs"]}.'
 			met_cve_conditions.append(s)
 			disj = True
 		else:
