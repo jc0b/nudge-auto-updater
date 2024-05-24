@@ -620,14 +620,12 @@ def process_options():
 	options, _ = parser.parse_args()
 	# chack if api key in env
 	api_key = options.api_key
-	if not api_key:
-		if os.environ.get("VULNCHECK_API_KEY"):
-			api_key = os.environ.get("VULNCHECK_API_KEY")
+	if (not api_key) and os.environ.get("VULNCHECK_API_KEY"):
+		api_key = os.environ.get("VULNCHECK_API_KEY")
 	# check if slack url in env
-	if (not options.webhook_url) and os.environ.get("SLACK_WEBHOOK"):
+	slack_url = options.webhook_url
+	if (not slack_url) and os.environ.get("SLACK_WEBHOOK"):
 		slack_url = os.environ.get("SLACK_WEBHOOK")
-	else:
-		slack_url = options.slack_url
 	# return based on config file option
 	if options.config_file:
 		return options.sofa_url, options.nudge_file, api_key, options.config_file, True, slack_url, options.markdown_file, options.auto
