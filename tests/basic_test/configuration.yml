@@ -1,0 +1,4 @@
+targets:
+  - target: "default"
+    update_to: "latest"
+default_deadline_days: 14
