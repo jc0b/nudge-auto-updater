@@ -412,7 +412,7 @@ def read_formula(formula_str:str, cve_name:str, cve:dict):
 				formula_str = re.sub(r"[0-9]+(\.[0-9]+)?-[0-9]+(\.[0-9]+)?", sub_subformula, formula_str)
 		return float(formula_str)
 	except Exception as e:
-		logging.error(f"Unable to interpret cve_urgency_conditions formula {s} for CVE {cve_name}.")
+		logging.error(f"Unable to interpret cve_urgency_conditions formula {s} for {cve_name}.")
 		sys.exit(1)
 
 def split_subformula(match):
@@ -488,11 +488,17 @@ def check_cve_scores(conditions, cves, name, days, conjunction, found=False):
 	for score in ["baseScore", "exploitabilityScore", "impactScore"]:
 		if f"max_{score}" in conditions:
 			l = []
+			d = dict()
 			for cve in cves:
 				l.append(cves[cve][score])
+				if cves[cve][score] in d:
+					d[cves[cve][score]] = d[cves[cve][score]].append(cve)
+				else:
+					d[cves[cve][score]] = [cve]
 			l.sort(reverse=True)
 			if l[0] >= conditions[f"max_{score}"]:
-				s = f'Max {score} of {l[0]} is higher than or equal to threshold {conditions[f"max_{score}"]}.'
+				condition_cve = d[l[0]][0]
+				s = f'Max {score} of {l[0]} ({condition_cve}) is higher than or equal to threshold {conditions[f"max_{score}"]}.'
 				met_cve_conditions.append(s)
 				disj = True
 			else:
@@ -509,41 +515,24 @@ def check_cve_scores(conditions, cves, name, days, conjunction, found=False):
 				conj = False
 	if "formulas" in conditions:
 		for formula in conditions["formulas"]:
-			l = []
-			for cve in cves:
-				l.append(read_formula(formula["formula"], cve, cves[cve]))
-			if formula["comparison"] == "average":
-				if (sum(l) / len(l)) >= formula["threshold"]:
-					s = f'CVEs had an average score for formula {formula["formula"]} ({(sum(l) / len(l))}) higher than or equal to threshold {formula["threshold"]}.'
-					met_cve_conditions.append(s)
-					disj = True
+			is_condition_met, s = check_formula_condition(formula, cves)
+			if is_condition_met:
+				met_cve_conditions.append(s)
+				disj = True
+			else:
+				conj = False
+	if "match_n_CVEs_conditions" in conditions:
+		for i, match_n_CVEs_condition in enumerate(conditions["match_n_CVEs_conditions"]):
+			is_condition_met, s = check_match_n_CVEs_condition(match_n_CVEs_condition, cves)
+			if is_condition_met:
+				if len(conditions["match_n_CVEs_conditions"]) == 1:
+					s = f'At least {conditions["match_n_CVEs_conditions"][i]["n"]} CVE(s) met the specified "match n CVEs condition" ({s}).'
 				else:
-					conj = False
-			if formula["comparison"] == "max":
-				l.sort(reverse=True)
-				if l[0] >= formula["threshold"]:
-					s = f'CVEs had an max score for formula {formula["formula"]} ({l[0]}) higher than or equal to threshold {formula["threshold"]}.'
-					met_cve_conditions.append(s)
-					disj = True
-				else:
-					conj = False
-			if formula["comparison"] == "sum":
-				if sum(l) >= formula["threshold"]:
-					s = f'CVEs had an summed score for formula {formula["formula"]} ({sum(l)}) higher than or equal to threshold {formula["threshold"]}.'
-					met_cve_conditions.append(s)
-					disj = True
-				else:
-					conj = False
-			if formula["comparison"] == "n_above":
-				n = formula["n"]
-				if len(l) >= n:
-					l.sort(reverse=True)
-					if l[n-1] >= formula["threshold"]:
-						s = f' At least {n} CVEs had a score for formula {formula["formula"]} higher than or equal to the threshold {formula["threshold"]}.'
-						met_cve_conditions.append(s)
-						disj = True
-					else:
-						conj = False
+					s = f'"Match n CVEs condition" with index {i} was met. At least {conditions["match_n_CVEs_conditions"][i]["n"]} CVE(s) meet the specified conditions ({s}).'
+				met_cve_conditions.append(s)
+				disj = True 
+			else:
+				conj = False
 	if conjunction:
 		return conj, met_cve_conditions
 	return disj, met_cve_conditions
@@ -577,12 +566,80 @@ def check_cve_numbers(conditions, cves, name, days, conjunction, found=False):
 		return conj, met_cve_conditions
 	return disj, met_cve_conditions
 
+def check_formula_condition(formula, cves):
+	l = []
+	d = dict()
+	result = False
+	s = ""
+	for cve in cves:
+		formula_result = read_formula(formula["formula"], cve, cves[cve])
+		l.append(formula_result)
+		if formula_result in d:
+			d[formula_result] = d[formula_result].append(cve)
+		else:
+			d[formula_result] = [cve]
+	if formula["comparison"] == "average":
+		if (sum(l) / len(l)) >= formula["threshold"]:
+			result = True
+			s = f'CVEs had an average score for formula "{formula["formula"]}" ({(sum(l) / len(l))}) higher than or equal to threshold {formula["threshold"]}.'
+	if formula["comparison"] == "max":
+		l.sort(reverse=True)
+		if l[0] >= formula["threshold"]:
+			result = True
+			condition_cve = d[l[0]][0]
+			s = f'CVEs had an max score for formula "{formula["formula"]}" ({l[0]}, {condition_cve}) higher than or equal to threshold {formula["threshold"]}.'
+	if formula["comparison"] == "sum":
+		if sum(l) >= formula["threshold"]:
+			result = True
+			s = f'CVEs had an summed score for formula "{formula["formula"]}" ({sum(l)}) higher than or equal to threshold {formula["threshold"]}.'
+	if formula["comparison"] == "n_above":
+		n = formula["n"]
+		if len(l) >= n:
+			l.sort(reverse=True)
+			if l[n-1] >= formula["threshold"]:
+				result = True
+				condition_cves = []
+				for formula_result in l[n-1:]:
+					condition_cves = condition_cves + d[formula_result]
+				s = f' At least {n} CVE(s) ({condition_cves}) had a score for formula "{formula["formula"]}" higher than or equal to the threshold {formula["threshold"]}.'
+	return result, s
+
+def check_match_n_CVEs_condition(condition, cves):
+	if not "n" in condition:
+		logging.error(f'`match_n_CVEs_conditions` must contain the value "n". Please update the configuration file.')
+		sys.exit(1)
+	matches = []
+	for cve in cves:
+		match_strings = []
+		match = True
+		# check every condition is met
+		for score in ["baseScore", "exploitabilityScore", "impactScore", "is_actively_exploited"]:
+			if score in condition:
+				if cves[cve][score] < condition[score]:
+					match = False
+					break
+				else:
+					match_strings.append(f'{score} of {cves[cve][score]} is greater than or equal to {condition[score]}')
+		if "formulas" in condition:
+			for formula in condition["formulas"]:
+				formula_result = read_formula(formula["formula"], cve, cves[cve])
+				if formula_result < formula["threshold"]:
+					match = False
+				else:
+					match_strings.append(f'formula "{formula["formula"]}" of {formula_result} is greater than or equal to {formula["threshold"]}')
+		if match == True:
+			matches.append(f'{cve} : {", ".join(match_strings)}')
+	return len(matches) >= condition["n"], "; ".join(matches)
+
 def is_CVE_score_condition(conditions):
 	for condition in ["max_baseScore", "max_exploitabilityScore", "max_impactScore", "average_baseScore", "average_exploitabilityScore", "average_impactScore"]:
 		if condition in conditions:
 			return True
 	if "formulas" in conditions:
 		if len(conditions["formulas"]) > 0:
+			return True
+	if "match_n_CVEs_conditions" in conditions:
+		if len(conditions["match_n_CVEs_conditions"]) > 0:
 			return True
 	return False
 
