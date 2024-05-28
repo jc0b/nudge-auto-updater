@@ -674,6 +674,8 @@ def process_options():
 						help=f'Optional file name to print markdown summary when nudge file is updated.')
 	parser.add_option('--auto', action='store_true',
 						help='Run without interaction.')
+	parser.add_option('--force', '-f', action='store_true',
+						help='Force re-evaluation of urgency and required installation date for every targetedOSVersionsRule, even when requiredMinimumOSVersion in Nudge JSON config is up to date.')
 	options, _ = parser.parse_args()
 	# chack if api key in env
 	api_key = options.api_key
@@ -685,8 +687,8 @@ def process_options():
 		slack_url = os.environ.get("SLACK_WEBHOOK")
 	# return based on config file option
 	if options.config_file:
-		return options.sofa_url, options.nudge_file, api_key, options.config_file, True, slack_url, options.markdown_file, options.auto
-	return options.sofa_url, options.nudge_file, api_key, DEFAULT_CONFIG_FILE_NAME, False, slack_url, options.markdown_file, options.auto
+		return options.sofa_url, options.nudge_file, api_key, options.config_file, True, slack_url, options.markdown_file, options.auto, options.force
+	return options.sofa_url, options.nudge_file, api_key, DEFAULT_CONFIG_FILE_NAME, False, slack_url, options.markdown_file, options.auto, options.force
 
 def setup_logging():
 	logging.basicConfig(
@@ -697,7 +699,7 @@ def setup_logging():
 
 def main():
 	setup_logging()
-	sofa_url, nudge_file_name, api_key, config_file_name, is_config_specified, slack_url, md_file, auto = process_options()
+	sofa_url, nudge_file_name, api_key, config_file_name, is_config_specified, slack_url, md_file, auto, force = process_options()
 	nudge_file_dict, nudge_requirements = get_nudge_config(nudge_file_name)
 	latest_macos_releases, cves, urls, release_dates = get_macos_data(sofa_url)
 	latest_macos_releases.sort(reverse=True)
@@ -718,6 +720,7 @@ def main():
 			logging.warning(f"Skipping \"{target['target']}\"")
 		else:
 			# nudge requirement needs to be checked
+			new_macos_release = nudge_requirements[target["target"]]["version"]
 			if target["update_to"] == "latest":
 				# nudge requirement needs to be checked against latest macOS
 				if nudge_requirements[target["target"]]["version"] < latest_macos_releases[0]:
@@ -735,10 +738,13 @@ def main():
 						is_uptodate = False
 						new_macos_release = macos_release
 						break
-			if is_uptodate:
+			if (not force) and is_uptodate:
 				logging.info(f"Nudge configuration for target \"{target['target']}\" is already up to date.")
 			else:
-				# nudge is not up to date! How urgent is the new update?
+				# nudge is not up to date or we are forcing a re-evaluation! 
+				if (force) and is_uptodate:
+					logging.info(f"Nudge configuration for target \"{target['target']}\" is already up to date. Forcing re-evaluation of urgency and required installation date.")
+				# How urgent is the new update?
 				# get security metrics
 				security_release_cves_scores = dict()
 				security_release_cves = cves[str(new_macos_release)]
