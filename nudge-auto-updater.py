@@ -492,7 +492,7 @@ def check_cve_scores(conditions, cves, name, days, conjunction, found=False):
 			for cve in cves:
 				l.append(cves[cve][score])
 				if cves[cve][score] in d:
-					d[cves[cve][score]] = d[cves[cve][score]].append(cve)
+					d[cves[cve][score]].append(cve)
 				else:
 					d[cves[cve][score]] = [cve]
 			l.sort(reverse=True)
@@ -575,7 +575,7 @@ def check_formula_condition(formula, cves):
 		formula_result = read_formula(formula["formula"], cve, cves[cve])
 		l.append(formula_result)
 		if formula_result in d:
-			d[formula_result] = d[formula_result].append(cve)
+			d[formula_result].append(cve)
 		else:
 			d[formula_result] = [cve]
 	if formula["comparison"] == "average":
