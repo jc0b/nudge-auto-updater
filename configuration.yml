@@ -1,29 +1,10 @@
----
-  targets:
-    - target : "default"
-      update_to : "latest"
-    - target : "12"
-      update_to : "13"
-  cve_urgency_levels:
-    - cve_urgency_conditions:
-        match_n_CVEs_conditions : 
-          - n : 1
-            baseScore : 1
-            impactScore : 1
-            formulas :
-              - formula : "baseScore + impactScore"
-                threshold : 2
-      deadline_days: 2
-      name: "critical"
-    - cve_urgency_conditions:
-        max_baseScore : 4
-        formulas:
-          - comparison : "n_above"
-            formula    : "baseScore + impactScore"
-            n : 1
-            threshold : 1
-      deadline_days : 7  
-      conjunction : false
-  default_deadline_days : 14
-
-
+targets:
+  - target: "default"
+    update_to: "latest"
+cve_urgency_levels:
+  - cve_urgency_conditions:
+      number_CVEs: 20
+      fraction_actively_exploited_CVEs: 0.5
+    deadline_days: 2
+    name: "urgent"
+default_deadline_days: 14
