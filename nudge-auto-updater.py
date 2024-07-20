@@ -727,7 +727,7 @@ def process_options():
 	parser.add_option('--force', '-f', action='store_true',
 						help='Force re-evaluation of urgency and required installation date for every targetedOSVersionsRule, even when requiredMinimumOSVersion in Nudge JSON config is up to date.')
 	parser.add_option('--cisa', action='store_true',
-						help='Sets required installation date to be CISA compliant, if your CISA recommends a sooner required installation date than your configuration.')
+						help='Sets required installation date to be CISA compliant, if CISA recommends a required installation date that is sooner than your configuration.')
 	options, _ = parser.parse_args()
 	# chack if api key in env
 	api_key = options.api_key
