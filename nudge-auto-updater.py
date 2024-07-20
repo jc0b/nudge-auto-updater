@@ -10,7 +10,8 @@ import sys
 import urllib.error
 import urllib.request
 
-DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+CISA_DATE_FORMAT = "%Y-%m-%d"
+CISA_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 DEFAULT_CONFIG_FILE_NAME = "configuration.yml"
 DEFAULT_NUDGE_FILENAME = "nudge-config.json"
 DEFAULT_SOFA_FEED = "https://sofa.macadmins.io/v1/macos_data_feed.json"
@@ -327,6 +328,7 @@ def check_if_cve_scores_needed(config, api_key):
 				logging.error(f"A VulnCheck API key is required to use this script, as CVE scores are used in the configuration. Please set it using either the VULNCHECK_API_KEY environment variable, or the --api-key argument.\n\tSee https://docs.vulncheck.com/getting-started/api-tokens for more.")
 				sys.exit(1)
 	return False
+
 # ----------------------------------------
 #               Configurations
 # ----------------------------------------
@@ -459,7 +461,7 @@ def check_deadline_urgent(conditions, cves_scores, cves, name, days, conjunction
 		return False, "", []
 	result1, met_cve_conditions1 = check_cve_scores(conditions, cves_scores, name, days, conjunction)
 	result2, met_cve_conditions2 = check_cve_numbers(conditions, cves, name, days, conjunction, result1)
-	s = f'CVE urgency is "{name}"! Installation will be required in {days} day(s).'
+	s = f'CVE urgency is "{name}"! Installation will be required {days} day(s) after release.'
 	if conjunction:
 		result = result1 and result2
 	else:
@@ -643,11 +645,59 @@ def is_CVE_score_condition(conditions):
 			return True
 	return False
 
+
+# ----------------------------------------
+#           CISA compliance
+# ----------------------------------------
+def update_days_from_CISA(cves, days, release_date):
+	result_date = None
+	result_cve = None
+	cves = sorted(list(cves.keys()))
+	oldest_cve_year = int(cves[0][4:8]) # CISA entry will be older than CVE
+	cisa_data = get_CISA_data()
+	for cisa_cve in reversed(cisa_data["vulnerabilities"]):
+		# don't need to check oldest CISA entries
+		if int(cisa_cve["dateAdded"][0:4]) < oldest_cve_year :
+			break
+		else:
+			# CISA entry is new enough to check: so is this a relevant cve?
+			if cisa_cve["cveID"] in cves:
+				# cve is relevant, so replace result is due date is earlier
+				if result_date:
+					if datetime.datetime.strptime(cisa_cve["dueDate"], CISA_DATE_FORMAT) < result_date:
+						result_date = datetime.datetime.strptime(cisa_cve["dueDate"], CISA_DATE_FORMAT)
+						result_cve = cisa_cve["cveID"]
+				else:
+					result_date = datetime.datetime.strptime(cisa_cve["dueDate"], CISA_DATE_FORMAT)
+					result_cve = cisa_cve["cveID"]
+	# calc days from date
+	if result_date:
+		cisa_days = max(0, (result_date - datetime.datetime.strptime(release_date, DATE_FORMAT)).days)
+		logging.info(f"CISA requires {result_cve} to be patched on {result_date.strftime(CISA_DATE_FORMAT)}, {cisa_days} day(s) after release.")
+		if cisa_days < days:
+			return cisa_days
+	return days
+
+def get_CISA_data():
+	req = urllib.request.Request(url=CISA_URL, headers=HEADERS, method="GET")
+	try:
+		response = urllib.request.urlopen(req)
+	except urllib.error.HTTPError as e:
+		logging.error(f"Unexpected HTTP response \"{e}\" while trying to get CISA feed.")
+		sys.exit(1)
+	try:
+		result = json.loads(response.read().decode('utf-8'))
+		logging.info("Successfully loaded macOS release data from CISA!")
+	except Exception as e:
+		logging.error("Unable to load macOS release data from CISA.")
+		sys.exit(1)
+	return result
+
 # ----------------------------------------
 #              User input
 # ----------------------------------------
 def user_confirm(days, target, version, old_version):
-	print(f'Should target \"{target}\" be updated from from {old_version} to {version} in {days} day(s)? [y/n] ', end='')
+	print(f'Should target \"{target}\" be updated from from {old_version} to {version} {days} day(s) after release? [y/n] ', end='')
 	while True:
 		try:
 			return _BOOLMAP[str(input()).lower()]
@@ -676,6 +726,8 @@ def process_options():
 						help='Run without interaction.')
 	parser.add_option('--force', '-f', action='store_true',
 						help='Force re-evaluation of urgency and required installation date for every targetedOSVersionsRule, even when requiredMinimumOSVersion in Nudge JSON config is up to date.')
+	parser.add_option('--cisa', action='store_true',
+						help='Sets required installation date to be CISA compliant, if your CISA recommends a sooner required installation date than your configuration.')
 	options, _ = parser.parse_args()
 	# chack if api key in env
 	api_key = options.api_key
@@ -687,8 +739,8 @@ def process_options():
 		slack_url = os.environ.get("SLACK_WEBHOOK")
 	# return based on config file option
 	if options.config_file:
-		return options.sofa_url, options.nudge_file, api_key, options.config_file, True, slack_url, options.markdown_file, options.auto, options.force
-	return options.sofa_url, options.nudge_file, api_key, DEFAULT_CONFIG_FILE_NAME, False, slack_url, options.markdown_file, options.auto, options.force
+		return options.sofa_url, options.nudge_file, api_key, options.config_file, True, slack_url, options.markdown_file, options.auto, options.force, options.cisa
+	return options.sofa_url, options.nudge_file, api_key, DEFAULT_CONFIG_FILE_NAME, False, slack_url, options.markdown_file, options.auto, options.force, options.cisa
 
 def setup_logging():
 	logging.basicConfig(
@@ -699,7 +751,7 @@ def setup_logging():
 
 def main():
 	setup_logging()
-	sofa_url, nudge_file_name, api_key, config_file_name, is_config_specified, slack_url, md_file, auto, force = process_options()
+	sofa_url, nudge_file_name, api_key, config_file_name, is_config_specified, slack_url, md_file, auto, force, cisa_compliant = process_options()
 	nudge_file_dict, nudge_requirements = get_nudge_config(nudge_file_name)
 	latest_macos_releases, cves, urls, release_dates = get_macos_data(sofa_url)
 	latest_macos_releases.sort(reverse=True)
@@ -777,9 +829,12 @@ def main():
 								break
 				if not urgency_condition_met:
 					days = config["default_deadline_days"]
-					s = f"No CVE urgency level met. Installation will be required in {days} day(s)."
+					s = f"No CVE urgency level met. Installation will be required {days} day(s) after release."
 					logging.info(s)
 					urgency_level_description = s 
+				# check CISA date
+				if cisa_compliant:
+					days = update_days_from_CISA(security_release_cves, days, release_dates[str(new_macos_release)])
 				# update target
 				if auto or user_confirm(days, target['target'], new_macos_release, nudge_requirements[target['target']]['version']):
 					nudge_file_needs_updating = True
