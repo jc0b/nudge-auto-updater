@@ -14,7 +14,7 @@ CISA_DATE_FORMAT = "%Y-%m-%d"
 CISA_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 DEFAULT_CONFIG_FILE_NAME = "configuration.yml"
 DEFAULT_NUDGE_FILENAME = "nudge-config.json"
-DEFAULT_SOFA_FEED = "https://sofa.macadmins.io/v1/macos_data_feed.json"
+DEFAULT_SOFA_FEED = "https://sofafeed.macadmins.io/v1/macos_data_feed.json"
 DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 HEADERS = {'accept': 'application/json', 'User-Agent': 'nudge-auto-updater/1.0'}
@@ -711,7 +711,7 @@ def process_options():
 	parser = optparse.OptionParser()
 	parser.set_usage('Usage: %prog [options]')
 	parser.add_option('--sofa-url', '-s', dest='sofa_url', default=DEFAULT_SOFA_FEED,
-						help="Custom SOFA feed URL. Should include the path to macos_data_feed.json.\nDefaults to https://sofa.macadmins.io/v1/macos_data_feed.json")
+						help="Custom SOFA feed URL. Should include the path to macos_data_feed.json.\nDefaults to https://sofafeed.macadmins.io/v1/macos_data_feed.json")
 	parser.add_option('--nudge-file', '-n', dest='nudge_file', default = DEFAULT_NUDGE_FILENAME,
 						help="The Nudge JSON config file to update.\nDefaults to nudge-config.json")
 	parser.add_option('--api-key', dest='api_key',
