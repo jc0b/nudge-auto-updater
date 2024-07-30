@@ -711,25 +711,25 @@ def process_options():
 	parser = optparse.OptionParser()
 	parser.set_usage('Usage: %prog [options]')
 	parser.add_option('--sofa-url', '-s', dest='sofa_url', default=DEFAULT_SOFA_FEED,
-						help="Custom SOFA feed URL. Should include the path to macos_data_feed.json.\nDefaults to https://sofafeed.macadmins.io/v1/macos_data_feed.json")
+						help="Custom SOFA feed URL. Should include the path to macos_data_feed.json. Defaults to https://sofafeed.macadmins.io/v1/macos_data_feed.json")
 	parser.add_option('--nudge-file', '-n', dest='nudge_file', default = DEFAULT_NUDGE_FILENAME,
 						help="The Nudge JSON config file to update.\nDefaults to nudge-config.json")
 	parser.add_option('--api-key', dest='api_key',
 						help="A VulnCheck API key for getting CVE data. It is required to either set this argument, or the VULNCHECK_API_KEY environment variable.")
 	parser.add_option('--config-file', '-c', dest='config_file',
-						help="The path to a yaml-formatted file containing the configuration for nudge-auto-updater")
+						help="The path to a yaml-formatted file containing the configuration for nudge-auto-updater.")
 	parser.add_option('--webhook-url', '-w', dest='webhook_url',
 						help=f'Optional url for slack webhooks.')
 	parser.add_option('--markdown-file', '-m', dest='markdown_file',
 						help=f'Optional file name to print markdown summary when nudge file is updated.')
-	parser.add_option('--auto', action='store_true',
+	parser.add_option('--auto', dest='auto', action='store_true',
 						help='Run without interaction.')
-	parser.add_option('--force', '-f', action='store_true',
+	parser.add_option('--force', '-f', dest='force', action='store_true',
 						help='Force re-evaluation of urgency and required installation date for every targetedOSVersionsRule, even when requiredMinimumOSVersion in Nudge JSON config is up to date.')
-	parser.add_option('--cisa', action='store_true',
+	parser.add_option('--cisa', dest='cisa', action='store_true',
 						help='Sets required installation date to be CISA compliant, if CISA recommends a required installation date that is sooner than your configuration.')
 	options, _ = parser.parse_args()
-	# chack if api key in env
+	# check if api key in env
 	api_key = options.api_key
 	if (not api_key) and os.environ.get("VULNCHECK_API_KEY"):
 		api_key = os.environ.get("VULNCHECK_API_KEY")
