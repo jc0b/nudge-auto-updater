@@ -558,12 +558,15 @@ def check_cve_numbers(conditions, cves, name, days, conjunction, found=False):
 		else:
 			conj = False
 	if "fraction_actively_exploited_CVEs" in conditions:
-		if (sum(cves.values()) / len(cves)) >= conditions["fraction_actively_exploited_CVEs"]:
-			s = f'Fraction of actively exploited CVEs ({(sum(cves.values()) / len(cves))}) is greater than or equal to threshold {conditions["fraction_actively_exploited_CVEs"]}.'
-			met_cve_conditions.append(s)
-			disj = True
-		else:
+		if len(cves) < 1:
 			conj = False
+		else:
+			if (sum(cves.values()) / len(cves)) >= conditions["fraction_actively_exploited_CVEs"]:
+				s = f'Fraction of actively exploited CVEs ({(sum(cves.values()) / len(cves))}) is greater than or equal to threshold {conditions["fraction_actively_exploited_CVEs"]}.'
+				met_cve_conditions.append(s)
+				disj = True
+			else:
+				conj = False
 	if conjunction:
 		return conj, met_cve_conditions
 	return disj, met_cve_conditions
