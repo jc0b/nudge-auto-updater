@@ -274,7 +274,7 @@ def read_macos_data(d:dict):
 		dates[str(version)] = release["Latest"]["ReleaseDate"]
 		found_security_release = False
 		for security_release in release["SecurityReleases"]:
-			if security_release["ProductVersion"] == release["Latest"]["ProductVersion"]:
+			if Version(security_release["ProductVersion"]) == Version(release["Latest"]["ProductVersion"]):
 				urls[str(version)] = process_url(security_release["SecurityInfo"])
 				if "CVEs" in security_release:
 					cves[str(version)] = security_release["CVEs"]
