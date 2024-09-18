@@ -376,9 +376,9 @@ def get_gt_config_target(s:str):
 	config_version_parts = s.split(".")
 	if len(config_version_parts) == 1 :
 		return Version(int(config_version_parts[0]) + 1)
-	elif len(parts) == 2:
+	elif len(config_version_parts) == 2:
 		return Version(int(config_version_parts[0]), int(config_version_parts[1]) + 1)
-	elif len(parts) == 3:
+	elif len(config_version_parts) == 3:
 		return Version(int(config_version_parts[0]), int(config_version_parts[1]), int(config_version_parts[2]) + 1)
 	logging.error(f"{s} is not a valid target in configuration.yml")
 	sys.exit(1)
