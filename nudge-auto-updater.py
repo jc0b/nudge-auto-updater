@@ -305,7 +305,9 @@ def get_CVE_scores(s:str, b:bool, api_key):
 	except Exception as e:
 		logging.error(f"Unable to load CVE data for {s}.")
 		sys.exit(1)
-	if "cvssMetricV31" in result["data"][0]["metrics"]:
+	if result["_meta"]["total_documents"] < 1:
+		return None
+	elif "cvssMetricV31" in result["data"][0]["metrics"]:
 		return read_CVE_scores(result["data"][0]["metrics"]["cvssMetricV31"][0], b)
 	else:
 		return None
