@@ -223,11 +223,13 @@ def write_nudge_config(nudge_file_name:str, d:dict):
 def update_nudge_file_dict(d:dict, target, version, url, release_date, days):
 	for i, requirement in enumerate(d["osVersionRequirements"]):
 		if requirement["targetedOSVersionsRule"] == target:
+			d["osVersionRequirements"][i]["aboutUpdateURL_disabled"] = adjust_url(requirement["aboutUpdateURL_disabled"], url)
 			adjusted_url_disabled = adjust_url(requirement["aboutUpdateURL_disabled"], url)
 			d["osVersionRequirements"][i]["aboutUpdateURL_disabled"] = (
 				"" if "This update has no published CVE entries." in adjusted_url_disabled else adjusted_url_disabled
 			)
 			for j in range(len(d["osVersionRequirements"][i]["aboutUpdateURLs"])):
+				d["osVersionRequirements"][i]["aboutUpdateURLs"][j]["aboutUpdateURL"] = adjust_url(requirement["aboutUpdateURLs"][j]["aboutUpdateURL"], url)
 				adjusted_url = adjust_url(requirement["aboutUpdateURLs"][j]["aboutUpdateURL"], url)
 				d["osVersionRequirements"][i]["aboutUpdateURLs"][j]["aboutUpdateURL"] = (
 					"" if "This update has no published CVE entries." in adjusted_url else adjusted_url
