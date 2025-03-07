@@ -242,7 +242,6 @@ def update_nudge_file_dict(d:dict, target, version, url, release_date, days):
 			d["osVersionRequirements"][i]["requiredInstallationDate"] = adjust_date_str(requirement["requiredInstallationDate"], release_date, days)
 			d["osVersionRequirements"][i]["requiredMinimumOSVersion"] = str(version)
 			return d
-
 	logging.error(f"Unable to find target {target} in {nudge_filename}.")
 	sys.exit(1)
 
