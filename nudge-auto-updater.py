@@ -235,7 +235,10 @@ def update_nudge_file_dict(d:dict, target, version, url, release_date, days):
 def adjust_url(url, change):
 	i = url.rfind("/") + 1
 	url = url[:i]
-	url += change
+	if change != "This update has no published CVE entries.":
+		url += change
+	else:
+		url += "100100" # https://support.apple.com/en-us/100100
 	return url
 
 def adjust_date_str(datestr, release_date, days):
