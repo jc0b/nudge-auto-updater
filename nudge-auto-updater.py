@@ -221,30 +221,30 @@ def write_nudge_config(nudge_file_name:str, d:dict):
 		sys.exit(1)
 
 def update_nudge_file_dict(d: dict, target, version, url, release_date, days):
-    for i, requirement in enumerate(d["osVersionRequirements"]):
-        if requirement["targetedOSVersionsRule"] == target:
-            adjusted_url_disabled = adjust_url(requirement["aboutUpdateURL_disabled"], url)
+	for i, requirement in enumerate(d["osVersionRequirements"]):
+		if requirement["targetedOSVersionsRule"] == target:
+			adjusted_url_disabled = adjust_url(requirement["aboutUpdateURL_disabled"], url)
             
-            # If the adjusted URL contains "no CVE" message, set it to an empty string
-            d["osVersionRequirements"][i]["aboutUpdateURL_disabled"] = (
-                "" if "This update has no published CVE entries." in adjusted_url_disabled else adjusted_url_disabled
-            )
+			# If the adjusted URL contains "no CVE" message, set it to an empty string
+			d["osVersionRequirements"][i]["aboutUpdateURL_disabled"] = (
+				"" if "This update has no published CVE entries." in adjusted_url_disabled else adjusted_url_disabled
+			)
             
-            for j in range(len(d["osVersionRequirements"][i]["aboutUpdateURLs"])):
-                adjusted_url = adjust_url(requirement["aboutUpdateURLs"][j]["aboutUpdateURL"], url)
+			for j in range(len(d["osVersionRequirements"][i]["aboutUpdateURLs"])):
+				adjusted_url = adjust_url(requirement["aboutUpdateURLs"][j]["aboutUpdateURL"], url)
                 
-                # If the adjusted URL contains the "no CVE" message, set it to an empty string
-                if "This update has no published CVE entries." in adjusted_url:
-                    d["osVersionRequirements"][i]["aboutUpdateURLs"][j]["aboutUpdateURL"] = ""
-                else:
-                    d["osVersionRequirements"][i]["aboutUpdateURLs"][j]["aboutUpdateURL"] = adjusted_url
+				# If the adjusted URL contains the "no CVE" message, set it to an empty string
+				if "This update has no published CVE entries." in adjusted_url:
+					d["osVersionRequirements"][i]["aboutUpdateURLs"][j]["aboutUpdateURL"] = ""
+				else:
+					d["osVersionRequirements"][i]["aboutUpdateURLs"][j]["aboutUpdateURL"] = adjusted_url
 
-            d["osVersionRequirements"][i]["requiredInstallationDate"] = adjust_date_str(requirement["requiredInstallationDate"], release_date, days)
-            d["osVersionRequirements"][i]["requiredMinimumOSVersion"] = str(version)
-            return d
+			d["osVersionRequirements"][i]["requiredInstallationDate"] = adjust_date_str(requirement["requiredInstallationDate"], release_date, days)
+			d["osVersionRequirements"][i]["requiredMinimumOSVersion"] = str(version)
+			return d
 
-    logging.error(f"Unable to find target {target} in {nudge_filename}.")
-    sys.exit(1)
+	logging.error(f"Unable to find target {target} in {nudge_filename}.")
+	sys.exit(1)
 
 def adjust_url(url, change):
 	i = url.rfind("/") + 1
