@@ -220,7 +220,7 @@ def write_nudge_config(nudge_file_name:str, d:dict):
 		logging.error(f"Unable to write to {nudge_file_name}")
 		sys.exit(1)
 
-def update_nudge_file_dict(d: dict, target, version, url, release_date, days):
+def update_nudge_file_dict(d:dict, target, version, url, release_date, days):
 	for i, requirement in enumerate(d["osVersionRequirements"]):
 		if requirement["targetedOSVersionsRule"] == target:
 			adjusted_url_disabled = adjust_url(requirement["aboutUpdateURL_disabled"], url)
