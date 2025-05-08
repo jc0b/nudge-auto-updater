@@ -128,7 +128,7 @@ def send_slack_webhook(slack_url, slack_blocks):
 	resp = urllib.request.urlopen(req, context=ssl.create_default_context(cafile=certifi.where()))
 	response = resp.read()
 	if(resp.status == 200):
-		logging.info("Slack wbhook sent successfully!")
+		logging.info("Slack webhook sent successfully!")
 	else:
 		logging.error(f"Slack webhook could not be sent. HTTP response {resp.status}.")
 		sys.exit(1)
