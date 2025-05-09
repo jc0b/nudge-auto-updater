@@ -215,7 +215,7 @@ def read_nudge_requirements(d:dict):
 def write_nudge_config(nudge_file_name:str, d:dict):
 	try:
 		with open(nudge_file_name, 'w') as f:
-			json.dump(d, f, indent=4)
+			json.dump(d, f, indent=4, ensure_ascii=False).encode('utf8')
 	except Exception as e:
 		logging.error(f"Unable to write to {nudge_file_name}")
 		sys.exit(1)
