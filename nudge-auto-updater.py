@@ -133,7 +133,7 @@ def send_slack_webhook(slack_url, slack_blocks):
 		logging.error(f"Slack webhook could not be sent. HTTP response {resp.status}.")
 		sys.exit(1)
 
-def build_slack_block_dict(urgency_condition_met, target_description, urgency_level_description, met_cve_conditions, cisa_adj, adjust_str, days):
+def build_slack_block_dict(urgency_condition_met, target_description, urgency_level_description, met_cve_conditions, cisa_adj, adj_str, days):
 	target_element  = {"type": "text", "text": target_description, "style": {"bold": True}}
 	urgency_element = {"type": "text", "text": f"\n{urgency_level_description}\n"}
 	header_element  = {"type": "rich_text_section", "elements": [target_element, urgency_element]}
@@ -155,8 +155,8 @@ def build_slack_block_dict(urgency_condition_met, target_description, urgency_le
 		elements.append(adj_element)
 	return {"type": "rich_text", "elements": elements}
 
-def add_to_slack_block(blocks, urgency_condition_met, target_description, urgency_level_description, met_cve_conditions):
-	blocks.append(build_slack_block_dict(urgency_condition_met, target_description, urgency_level_description, met_cve_conditions))
+def add_to_slack_block(blocks, urgency_condition_met, target_description, urgency_level_description, met_cve_conditions, cisa_adj, adjust_str, days):
+	blocks.append(build_slack_block_dict(urgency_condition_met, target_description, urgency_level_description, met_cve_conditions, cisa_adj, adjust_str, days))
 	blocks.append({"type": "divider"})
 	return blocks
 
@@ -513,7 +513,7 @@ def update_days_from_adjustment(days, release_date, deadline_adjustments):
 		is_date_accepted = old_days == days
 	days = max(0, days)
 	if description != set():
-		s = "Installation date was adjusted not to be on a "
+		s = "Installation date was adjusted to not be on a "
 		for i, item in enumerate(list(description)):
 			s += item 
 			if i+1 != len(description):
@@ -522,7 +522,7 @@ def update_days_from_adjustment(days, release_date, deadline_adjustments):
 				else:
 					s += ", a "
 		s += "."
-		logging.info(s + f" New enforcement date will be in {days} day(s).")
+		logging.info(s + f" The new enforcement date will be in {days} day(s).")
 		return max(0, days), s
 	return max(0, days), None
 
