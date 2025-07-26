@@ -150,7 +150,7 @@ def build_slack_block_dict(urgency_condition_met, target_description, urgency_le
 			adj_elements.append({"type": "text", "text": f"\nInstallation date was adjusted to be CISA compliant.\n"})
 		if adj_str:
 			adj_elements.append({"type": "text", "text": f"{adj_str}\n"})
-		adj_elements.append({"type": "text", "text": f"\nAfter adjustments installation will be required in {days} day(s).\n"})
+		adj_elements.append({"type": "text", "text": f"\nAfter adjustments, installation will be required {days} day(s) after release.\n"})
 		adj_element  = {"type": "rich_text_section", "elements": adj_elements}
 		elements.append(adj_element)
 	return {"type": "rich_text", "elements": elements}
@@ -193,7 +193,7 @@ def md_description(urgency_condition_met, target_description, urgency_level_desc
 			result += "Installation date was adjusted to be CISA compliant. "
 		if adj_str:
 			result += adj_str + " "
-		result += f"After adjustments installation will be required in {days} day(s).\n"
+		result += f"After adjustments, installation will be required {days} day(s) after release.\n"
 	if urgency_condition_met:
 		result += "\nThe following conditions were met to meet this urgency level:\n"
 		for met_cve_condition in met_cve_conditions:
@@ -527,7 +527,7 @@ def update_days_from_adjustment(days, release_date, deadline_adjustments):
 				else:
 					s += "a "
 		s += "."
-		logging.info(s + f" The new enforcement date will be in {days} day(s).")
+		logging.info(s + f" The new enforcement date will be {days} day(s) after release.")
 		return max(0, days), s
 	return max(0, days), None
 
@@ -985,6 +985,7 @@ def main():
 					days = update_days_from_CISA(security_release_cves, days, release_dates[str(new_macos_release)])
 					cisa_adj = unadj_days == days
 				# check if date needs to be adjusted
+				adj_str = None
 				if "deadline_adjustments" in config:
 					days, adj_str = update_days_from_adjustment(days, release_dates[str(new_macos_release)], config["deadline_adjustments"])
 				# update target
