@@ -514,13 +514,18 @@ def update_days_from_adjustment(days, release_date, deadline_adjustments):
 	days = max(0, days)
 	if description != set():
 		s = "Installation date was adjusted to not be on a "
-		for i, item in enumerate(list(description)):
+		description = list(description)
+		for i, item in enumerate(description):
 			s += item 
 			if i+1 != len(description):
 				if i+2 == len(description):
-					s += ", or a "
+					s += ", or "
 				else:
-					s += ", a "
+					s += ", "
+				if list(description)[i+1][0:1].isnumeric():
+					s += "the "
+				else:
+					s += "a "
 		s += "."
 		logging.info(s + f" The new enforcement date will be in {days} day(s).")
 		return max(0, days), s
@@ -553,7 +558,7 @@ def adjust_date_weekday(days, weekdays_to_skip, new_date, adjust_date_earlier, d
 	weekday = new_date.weekday()
 	weekday_str = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"][weekday]
 	if weekday_str in weekdays_to_skip:
-		description.add("weekday to skip")
+		description.add(new_date.strftime("%A")) # adds name of weekday
 		return adjust_days(days, adjust_date_earlier), description
 	return days, description
 
@@ -580,10 +585,10 @@ def adjust_date_skipped_dates(days, skips, new_date, month_first, adjust_date_ea
 						if len(year) == 2:
 							year = "20" + year
 						if new_date.year == year:
-							description.add("date to skip")
+							description.add(date_str)
 							return adjust_days(days, adjust_date_earlier), description
 					else:
-						description.add("date to skip")
+						description.add(date_str)
 						return adjust_days(days, adjust_date_earlier), description
 
 		except Exception as e:
