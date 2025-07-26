@@ -583,7 +583,9 @@ def adjust_date_skipped_dates(days, skips, new_date, month_first, adjust_date_ea
 					if len(date_parts) == 3:
 						year = date_parts[2]
 						if len(year) == 2:
-							year = "20" + year
+							if srt(new_date.year)[2:] == year:
+								description.add(date_str)
+								return adjust_days(days, adjust_date_earlier), description
 						if new_date.year == year:
 							description.add(date_str)
 							return adjust_days(days, adjust_date_earlier), description
