@@ -133,20 +133,30 @@ def send_slack_webhook(slack_url, slack_blocks):
 		logging.error(f"Slack webhook could not be sent. HTTP response {resp.status}.")
 		sys.exit(1)
 
-def build_slack_block_dict(urgency_condition_met, target_description, urgency_level_description, met_cve_conditions):
+def build_slack_block_dict(urgency_condition_met, target_description, urgency_level_description, met_cve_conditions, cisa_adj, adj_str, days):
 	target_element  = {"type": "text", "text": target_description, "style": {"bold": True}}
 	urgency_element = {"type": "text", "text": f"\n{urgency_level_description}\n"}
 	header_element  = {"type": "rich_text_section", "elements": [target_element, urgency_element]}
+	elements = [header_element]
 	if urgency_condition_met:
 		cve_condition_elements = []
 		for met_cve_condition in met_cve_conditions:
 			cve_condition_elements.append({"type": "rich_text_section", "elements": [{"type": "text", "text": met_cve_condition}]})
 		list_element = {"type": "rich_text_list", "style": "bullet", "indent": 0, "border": 0, "elements": cve_condition_elements}
-		return {"type": "rich_text", "elements": [header_element, list_element]}
-	return {"type": "rich_text", "elements": [header_element]}
+		elements.append(list_element)
+	if cisa_adj or adj_str:
+		adj_elements = []
+		if cisa_adj:
+			adj_elements.append({"type": "text", "text": f"\nInstallation date was adjusted to be CISA compliant.\n"})
+		if adj_str:
+			adj_elements.append({"type": "text", "text": f"{adj_str}\n"})
+		adj_elements.append({"type": "text", "text": f"\nAfter adjustments, installation will be required {days} day(s) after release.\n"})
+		adj_element  = {"type": "rich_text_section", "elements": adj_elements}
+		elements.append(adj_element)
+	return {"type": "rich_text", "elements": elements}
 
-def add_to_slack_block(blocks, urgency_condition_met, target_description, urgency_level_description, met_cve_conditions):
-	blocks.append(build_slack_block_dict(urgency_condition_met, target_description, urgency_level_description, met_cve_conditions))
+def add_to_slack_block(blocks, urgency_condition_met, target_description, urgency_level_description, met_cve_conditions, cisa_adj, adjust_str, days):
+	blocks.append(build_slack_block_dict(urgency_condition_met, target_description, urgency_level_description, met_cve_conditions, cisa_adj, adjust_str, days))
 	blocks.append({"type": "divider"})
 	return blocks
 
@@ -176,9 +186,16 @@ def write_md_file(md_file, md):
 		sys.exit(1)
 
 
-def md_description(urgency_condition_met, target_description, urgency_level_description, met_cve_conditions):
+def md_description(urgency_condition_met, target_description, urgency_level_description, met_cve_conditions, cisa_adj, adj_str, days):
 	result = target_description + "\n" + urgency_level_description + "\n"
+	if cisa_adj or adj_str:
+		if cisa_adj:
+			result += "Installation date was adjusted to be CISA compliant. "
+		if adj_str:
+			result += adj_str + " "
+		result += f"After adjustments, installation will be required {days} day(s) after release.\n"
 	if urgency_condition_met:
+		result += "\nThe following conditions were met to meet this urgency level:\n"
 		for met_cve_condition in met_cve_conditions:
 			result += "- " + met_cve_condition + "\n"
 	result += "\n"
@@ -458,6 +475,130 @@ def add_subformula(match):
 
 def brackets_subformula(match):
 	return match[0][1:-1]
+
+def check_deadline_adjustments_types(deadline_adjustments):
+	if type(deadline_adjustments) != dict:
+		logging.error(f"Unable to read `deadline_adjustments` field in configuration file. This should be formatted as a dict, but is currently a {type(deadline_adjustments)}.")
+		sys.exit(1)
+	for key in ["skip_weekends", "month_first", "adjust_date_earlier"]:
+		if key in deadline_adjustments:
+			if type(deadline_adjustments[key]) != bool:
+				logging.error(f"Unable to read `{key}` field in configuration file. This should be a boolean value, but is currently a {type(deadline_adjustments[key])}.")
+				sys.exit(1)
+	for key in ["skip_specific_weekdays", "skipped_dates"]:
+		if key in deadline_adjustments:
+			if type(deadline_adjustments[key]) != list:
+				logging.error(f"Unable to read `{key}` field in configuration file. This should be a list, but is currently a {type(deadline_adjustments[key])}.")
+				sys.exit(1)
+
+def update_days_from_adjustment(days, release_date, deadline_adjustments):
+	check_deadline_adjustments_types(deadline_adjustments)
+	release_date = datetime.datetime.strptime(release_date, DATE_FORMAT)
+	description = set()
+	adjust_date_earlier = False
+	if "adjust_date_earlier" in deadline_adjustments:
+		adjust_date_earlier = deadline_adjustments["adjust_date_earlier"]
+	is_date_accepted = False
+	while not is_date_accepted:
+		old_days = days
+		if "skip_weekends" in deadline_adjustments and deadline_adjustments["skip_weekends"]:
+			days, description = adjust_date_weekend(days, release_date + datetime.timedelta(days=days), adjust_date_earlier, description)
+		if "skip_specific_weekdays" in deadline_adjustments:
+			days, description = adjust_date_weekday(days, deadline_adjustments["skip_specific_weekdays"], release_date + datetime.timedelta(days=days), adjust_date_earlier, description)
+		if "skipped_dates" in deadline_adjustments:
+			month_first = False
+			if "month_first" in deadline_adjustments and deadline_adjustments["month_first"]:
+				month_first = True
+			days, description = adjust_date_skipped_dates(days, deadline_adjustments["skipped_dates"], release_date + datetime.timedelta(days=days), month_first, adjust_date_earlier, description)
+		is_date_accepted = old_days == days
+	days = max(0, days)
+	if description != set():
+		s = "Installation date was adjusted to not be on a "
+		description = list(description)
+		for i, item in enumerate(description):
+			s += item 
+			if i+1 != len(description):
+				if i+2 == len(description):
+					s += ", or "
+				else:
+					s += ", "
+				if list(description)[i+1][0:1].isnumeric():
+					s += "the "
+				else:
+					s += "a "
+		s += "."
+		logging.info(s + f" The new enforcement date will be {days} day(s) after release.")
+		return max(0, days), s
+	return max(0, days), None
+
+def adjust_days(days, adjust_date_earlier):
+	if adjust_date_earlier:
+		return days - 1
+	else:
+		return days + 1
+
+def adjust_date_weekend(days, new_date, adjust_date_earlier, description):
+	weekday = new_date.isoweekday()
+	if weekday == 6:
+		description.add("weekend")
+		if adjust_date_earlier:
+			return days - 1, description
+		else:
+			description.add("weekend")
+			return days + 2, description
+	elif weekday == 7:
+		description.add("weekend")
+		if adjust_date_earlier:
+			return days - 2, description
+		else:
+			return days + 1, description
+	return days, description
+
+def adjust_date_weekday(days, weekdays_to_skip, new_date, adjust_date_earlier, description):
+	weekday = new_date.weekday()
+	weekday_str = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"][weekday]
+	if weekday_str in weekdays_to_skip:
+		description.add(new_date.strftime("%A")) # adds name of weekday
+		return adjust_days(days, adjust_date_earlier), description
+	return days, description
+
+def adjust_date_skipped_dates(days, skips, new_date, month_first, adjust_date_earlier, description):
+	for date_str in skips:
+		date_parts = date_str.split("/")
+		if len(date_parts) < 2 or len(date_parts) > 3:
+			logging.error(f"Unable to read {date_str} in `skipped_dates` field in configuration file.")
+			sys.exit(1)
+		try:
+			if month_first:
+				month = int(date_parts[0])
+				day = int(date_parts[1])
+			else:
+				day = int(date_parts[0])
+				month = int(date_parts[1])
+			if month > 12:
+				logging.error(f"Unable to read {date_str} in `skipped_dates` field in configuration file. Check if `month_first` is set to correctly.")
+				sys.exit(1)
+			if new_date.day == day:
+				if new_date.month == month:
+					if len(date_parts) == 3:
+						year = date_parts[2]
+						if len(year) == 2:
+							if srt(new_date.year)[2:] == year:
+								description.add(date_str)
+								return adjust_days(days, adjust_date_earlier), description
+						if new_date.year == year:
+							description.add(date_str)
+							return adjust_days(days, adjust_date_earlier), description
+					else:
+						description.add(date_str)
+						return adjust_days(days, adjust_date_earlier), description
+
+		except Exception as e:
+			logging.error(f"Unable to read {date_str} in `skipped_dates` field in configuration file.")
+			logging.error(e)
+			sys.exit(1)
+	return days, description
+
 
 # ----------------------------------------
 #           Check CVE Conditions
@@ -839,17 +980,23 @@ def main():
 					logging.info(s)
 					urgency_level_description = s 
 				# check CISA date
+				cisa_adj = False
 				if cisa_compliant:
 					days = update_days_from_CISA(security_release_cves, days, release_dates[str(new_macos_release)])
+					cisa_adj = unadj_days == days
+				# check if date needs to be adjusted
+				adj_str = None
+				if "deadline_adjustments" in config:
+					days, adj_str = update_days_from_adjustment(days, release_dates[str(new_macos_release)], config["deadline_adjustments"])
 				# update target
 				if auto or user_confirm(days, target['target'], new_macos_release, nudge_requirements[target['target']]['version']):
 					nudge_file_needs_updating = True
 					nudge_file_dict = update_nudge_file_dict(nudge_file_dict, target["target"], new_macos_release, urls[str(new_macos_release)], release_dates[str(new_macos_release)], days)
 					target_description = f'Target \"{target["target"]}\" was updated from from {nudge_requirements[target["target"]]["version"]} to {new_macos_release}.'
 					if slack_url:
-						slack_blocks = add_to_slack_block(slack_blocks, urgency_condition_met, target_description, urgency_level_description, met_cve_conditions)
+						slack_blocks = add_to_slack_block(slack_blocks, urgency_condition_met, target_description, urgency_level_description, met_cve_conditions, cisa_adj, adj_str, days)
 					if md_file:
-						md += md_description(urgency_condition_met, target_description, urgency_level_description, met_cve_conditions)
+						md += md_description(urgency_condition_met, target_description, urgency_level_description, met_cve_conditions, cisa_adj, adj_str, days)
 					if not auto:
 						logging.info("Nudge configuration will be updated.")
 				else:
