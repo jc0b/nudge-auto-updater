@@ -165,7 +165,7 @@ def setup_slack_blocks():
 		global certifi
 		import certifi
 	except ImportError as e:
-			loggig.error(f"Certifi library could not be loaded.")
+			logging.error(f"Certifi library could not be loaded.")
 			logging.error("You can install the necessary dependencies with 'python3 -m pip install -r requirements.txt'")
 			sys.exit(1)
 	header_block = {"type": "header", "text": {"type": "plain_text", "text": "Nudge Configuration Updated", "emoji": True}}
@@ -238,7 +238,7 @@ def write_nudge_config(nudge_file_name:str, d:dict):
 		logging.error(e)
 		sys.exit(1)
 
-def update_nudge_file_dict(d:dict, target, version, url, release_date, days):
+def update_nudge_file_dict(d:dict, target, version, url, release_date, days, nudge_file_name):
 	for i, requirement in enumerate(d["osVersionRequirements"]):
 		if requirement["targetedOSVersionsRule"] == target:
 			d["osVersionRequirements"][i]["aboutUpdateURL_disabled"] = adjust_url(requirement["aboutUpdateURL_disabled"], url)
@@ -247,7 +247,7 @@ def update_nudge_file_dict(d:dict, target, version, url, release_date, days):
 			d["osVersionRequirements"][i]["requiredInstallationDate"] = adjust_date_str(requirement["requiredInstallationDate"], release_date, days)
 			d["osVersionRequirements"][i]["requiredMinimumOSVersion"] = str(version)
 			return d
-	logging.error(f"Unable to find target {target} in {nudge_filename}.")
+	logging.error(f"Unable to find target {target} in {nudge_file_name}.")
 	sys.exit(1)
 
 def adjust_url(url, change):
@@ -437,7 +437,7 @@ def read_formula(formula_str:str, cve_name:str, cve:dict):
 				formula_str = re.sub(r"[0-9]+(\.[0-9]+)?-[0-9]+(\.[0-9]+)?", sub_subformula, formula_str)
 		return float(formula_str)
 	except Exception as e:
-		logging.error(f"Unable to interpret cve_urgency_conditions formula {s} for {cve_name}.")
+		logging.error(f"Unable to interpret cve_urgency_conditions formula {formula_str} for {cve_name}.")
 		sys.exit(1)
 
 def split_subformula(match):
@@ -583,7 +583,7 @@ def adjust_date_skipped_dates(days, skips, new_date, month_first, adjust_date_ea
 					if len(date_parts) == 3:
 						year = date_parts[2]
 						if len(year) == 2:
-							if srt(new_date.year)[2:] == year:
+							if str(new_date.year)[2:] == year:
 								description.add(date_str)
 								return adjust_days(days, adjust_date_earlier), description
 						if new_date.year == year:
@@ -981,6 +981,7 @@ def main():
 					urgency_level_description = s 
 				# check CISA date
 				cisa_adj = False
+				unadj_days = days
 				if cisa_compliant:
 					days = update_days_from_CISA(security_release_cves, days, release_dates[str(new_macos_release)])
 					cisa_adj = unadj_days == days
@@ -991,7 +992,7 @@ def main():
 				# update target
 				if auto or user_confirm(days, target['target'], new_macos_release, nudge_requirements[target['target']]['version']):
 					nudge_file_needs_updating = True
-					nudge_file_dict = update_nudge_file_dict(nudge_file_dict, target["target"], new_macos_release, urls[str(new_macos_release)], release_dates[str(new_macos_release)], days)
+					nudge_file_dict = update_nudge_file_dict(nudge_file_dict, target["target"], new_macos_release, urls[str(new_macos_release)], release_dates[str(new_macos_release)], days, nudge_file_name)
 					target_description = f'Target \"{target["target"]}\" was updated from from {nudge_requirements[target["target"]]["version"]} to {new_macos_release}.'
 					if slack_url:
 						slack_blocks = add_to_slack_block(slack_blocks, urgency_condition_met, target_description, urgency_level_description, met_cve_conditions, cisa_adj, adj_str, days)
