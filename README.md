@@ -9,3 +9,4 @@ Information about configuring nudge-auto-updater can be found in [the configurat
 
 If you want to leverage the VulnCheck functionality, then you will need to provide your own [VulnCheck API key](https://vulncheck.com/token/newtoken). You can supply this key to the script by means of an [environment variable](https://github.com/jc0b/nudge-auto-updater/wiki/Environment-Variables), or a [command-line argument](https://github.com/jc0b/nudge-auto-updater/wiki/Command-line-Arguments).
 
+If you're a member of [the MacAdmins Slack](https://www.macadmins.org), you can join us in the [`#nudge-auto-updater`](https://macadmins.slack.com/archives/C07Q0BF6403) channel!
