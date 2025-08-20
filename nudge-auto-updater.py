@@ -844,7 +844,7 @@ def get_CISA_data():
 #              User input
 # ----------------------------------------
 def user_confirm(days, target, version, old_version):
-	print(f'Should target \"{target}\" be updated from from {old_version} to {version} {days} day(s) after release? [y/n] ', end='')
+	print(f'Should target \"{target}\" be updated from {old_version} to {version} {days} day(s) after release? [y/n] ', end='')
 	while True:
 		try:
 			return _BOOLMAP[str(input()).lower()]
@@ -993,7 +993,7 @@ def main():
 				if auto or user_confirm(days, target['target'], new_macos_release, nudge_requirements[target['target']]['version']):
 					nudge_file_needs_updating = True
 					nudge_file_dict = update_nudge_file_dict(nudge_file_dict, target["target"], new_macos_release, urls[str(new_macos_release)], release_dates[str(new_macos_release)], days, nudge_file_name)
-					target_description = f'Target \"{target["target"]}\" was updated from from {nudge_requirements[target["target"]]["version"]} to {new_macos_release}.'
+					target_description = f'Target \"{target["target"]}\" was updated from {nudge_requirements[target["target"]]["version"]} to {new_macos_release}.'
 					if slack_url:
 						slack_blocks = add_to_slack_block(slack_blocks, urgency_condition_met, target_description, urgency_level_description, met_cve_conditions, cisa_adj, adj_str, days)
 					if md_file:
