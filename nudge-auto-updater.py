@@ -2,6 +2,7 @@
 import datetime
 import json
 import logging
+import argparse
 import optparse
 import os
 import re
@@ -854,40 +855,42 @@ def user_confirm(days, target, version, old_version):
 # ----------------------------------------
 #                 Main
 # ----------------------------------------
-def process_options():
-	parser = optparse.OptionParser()
-	parser.set_usage('Usage: %prog [options]')
-	parser.add_option('--sofa-url', '-s', dest='sofa_url', default=DEFAULT_SOFA_FEED,
-						help="Custom SOFA feed URL. Should include the path to macos_data_feed.json. Defaults to https://sofafeed.macadmins.io/v1/macos_data_feed.json")
-	parser.add_option('--nudge-file', '-n', dest='nudge_file', default = DEFAULT_NUDGE_FILENAME,
-						help="The Nudge JSON config file to update.\nDefaults to nudge-config.json")
-	parser.add_option('--api-key', dest='api_key',
-						help="A VulnCheck API key for getting CVE data. It is required to either set this argument, or the VULNCHECK_API_KEY environment variable.")
-	parser.add_option('--config-file', '-c', dest='config_file',
-						help="The path to a yaml-formatted file containing the configuration for nudge-auto-updater.")
-	parser.add_option('--webhook-url', '-w', dest='webhook_url',
-						help=f'Optional url for slack webhooks.')
-	parser.add_option('--markdown-file', '-m', dest='markdown_file',
-						help=f'Optional file name to print markdown summary when nudge file is updated.')
-	parser.add_option('--auto', dest='auto', action='store_true',
-						help='Run without interaction.')
-	parser.add_option('--force', '-f', dest='force', action='store_true',
-						help='Force re-evaluation of urgency and required installation date for every targetedOSVersionsRule, even when requiredMinimumOSVersion in Nudge JSON config is up to date.')
-	parser.add_option('--cisa', dest='cisa', action='store_true',
-						help='Sets required installation date to be CISA compliant, if CISA recommends a required installation date that is sooner than your configuration.')
-	options, _ = parser.parse_args()
+def process_args():
+	parser = argparse.ArgumentParser(
+		description='`nudge-auto-updater` is a rule-based updater for Nudge JSON files that sources lists of CVEs from SOFA, and enriches them with information from the National Vulnerability Database (via VulnCheck).',
+		usage='%(prog)s [args]',
+	)
+	parser.add_argument('--sofa-url', '-s', dest='sofa_url', default=DEFAULT_SOFA_FEED,
+					  help="Custom SOFA feed URL. Should include the path to macos_data_feed.json. Defaults to https://sofafeed.macadmins.io/v1/macos_data_feed.json")
+	parser.add_argument('--nudge-file', '-n', dest='nudge_file', default=DEFAULT_NUDGE_FILENAME,
+					  help="The Nudge JSON config file to update.\nDefaults to nudge-config.json")
+	parser.add_argument('--api-key', dest='api_key',
+					  help="A VulnCheck API key for getting CVE data. It is required to either set this argument, or the VULNCHECK_API_KEY environment variable.")
+	parser.add_argument('--config-file', '-c', dest='config_file',
+					  help="The path to a yaml-formatted file containing the configuration for nudge-auto-updater.")
+	parser.add_argument('--webhook-url', '-w', dest='webhook_url',
+					  help=f'Optional url for slack webhooks.')
+	parser.add_argument('--markdown-file', '-m', dest='markdown_file',
+					  help=f'Optional file name to print markdown summary when nudge file is updated.')
+	parser.add_argument('--auto', dest='auto', action='store_true',
+					  help='Run without interaction.')
+	parser.add_argument('--force', '-f', dest='force', action='store_true',
+					  help='Force re-evaluation of urgency and required installation date for every targetedOSVersionsRule, even when requiredMinimumOSVersion in Nudge JSON config is up to date.')
+	parser.add_argument('--cisa', dest='cisa', action='store_true',
+					  help='Sets required installation date to be CISA compliant, if CISA recommends a required installation date that is sooner than your configuration.')
+	args = parser.parse_args()
 	# check if api key in env
-	api_key = options.api_key
+	api_key = args.api_key
 	if (not api_key) and os.environ.get("VULNCHECK_API_KEY"):
 		api_key = os.environ.get("VULNCHECK_API_KEY")
 	# check if slack url in env
-	slack_url = options.webhook_url
+	slack_url = args.webhook_url
 	if (not slack_url) and os.environ.get("SLACK_WEBHOOK"):
 		slack_url = os.environ.get("SLACK_WEBHOOK")
 	# return based on config file option
-	if options.config_file:
-		return options.sofa_url, options.nudge_file, api_key, options.config_file, True, slack_url, options.markdown_file, options.auto, options.force, options.cisa
-	return options.sofa_url, options.nudge_file, api_key, DEFAULT_CONFIG_FILE_NAME, False, slack_url, options.markdown_file, options.auto, options.force, options.cisa
+	if args.config_file:
+		return args.sofa_url, args.nudge_file, api_key, args.config_file, True, slack_url, args.markdown_file, args.auto, args.force, args.cisa
+	return args.sofa_url, args.nudge_file, api_key, DEFAULT_CONFIG_FILE_NAME, False, slack_url, args.markdown_file, args.auto, args.force, args.cisa
 
 def setup_logging():
 	logging.basicConfig(
@@ -898,7 +901,7 @@ def setup_logging():
 
 def main():
 	setup_logging()
-	sofa_url, nudge_file_name, api_key, config_file_name, is_config_specified, slack_url, md_file, auto, force, cisa_compliant = process_options()
+	sofa_url, nudge_file_name, api_key, config_file_name, is_config_specified, slack_url, md_file, auto, force, cisa_compliant = process_args()
 	nudge_file_dict, nudge_requirements = get_nudge_config(nudge_file_name)
 	latest_macos_releases, cves, urls, release_dates = get_macos_data(sofa_url)
 	latest_macos_releases.sort(reverse=True)
